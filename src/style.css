@@ -1,0 +1,229 @@
+:root {
+  color-scheme: light;
+  --bg: #f6f7fb;
+  --surface: #ffffff;
+  --border: #e2e5ec;
+  --text: #1b1e27;
+  --muted: #6b7280;
+  --accent: #2f6fed;
+  --accent-contrast: #ffffff;
+  --radius: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.topbar {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 14px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.topbar h1 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  flex: 1;
+}
+
+.layout {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.map-pane {
+  flex: 2;
+  min-width: 0;
+  position: relative;
+}
+
+gmp-map-3d {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.panel {
+  flex: 1;
+  min-width: 280px;
+  max-width: 380px;
+  overflow-y: auto;
+  padding: 14px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+}
+
+.panel-empty {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.zone-group {
+  margin-bottom: 18px;
+}
+
+.zone-group h3 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+
+.zone-group.priority h3::before {
+  content: "📍 ";
+}
+
+.attendee-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+}
+
+.attendee-card .row1 {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.attendee-card .meta {
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.attendee-card .wa-link {
+  display: inline-block;
+  margin-top: 4px;
+  color: #1aa260;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.primary-btn {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border: none;
+  border-radius: var(--radius);
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.primary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.secondary-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  padding: 0;
+  margin: -6px 0 6px;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+dialog {
+  border: none;
+  border-radius: var(--radius);
+  padding: 0;
+  max-width: 420px;
+  width: 90vw;
+}
+
+dialog::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+#attendee-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+}
+
+#attendee-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+#attendee-form input,
+#attendee-form select {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+}
+
+.checkbox-row {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+}
+
+.checkbox-row input {
+  width: auto;
+}
+
+.form-status {
+  min-height: 1.2em;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+@media (max-width: 760px) {
+  .layout {
+    flex-direction: column;
+  }
+  .panel {
+    max-width: none;
+    max-height: 45vh;
+  }
+}
