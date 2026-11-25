@@ -17,6 +17,104 @@
     </script>
   </head>
   <body>
+    <!-- ───────── Site nav ───────── -->
+    <nav class="site-nav" aria-label="Site">
+      <a class="wordmark" href="#top">ride2<em>fde</em></a>
+      <span class="nav-links">
+        <a href="#about">About</a>
+        <a href="#how">How it works</a>
+        <a href="#trust">Good to know</a>
+      </span>
+      <a class="cta nav-cta" href="#ride">Find a ride</a>
+    </nav>
+
+    <!-- ───────── About ───────── -->
+    <main id="top" class="about">
+      <section class="hero" id="about">
+        <span class="badge">FDESUMMIT 2026 · HYDERABAD</span>
+        <h1>Get to <span class="lime">IIT Hyderabad</span><br />together<span class="cyan">.</span></h1>
+        <p class="lede">
+          ride2fde is the ride pool for FDE Summit attendees. Drop your starting point, see who is heading
+          your way, and share the road to the Kandi campus.
+        </p>
+        <div class="hero-actions">
+          <a class="cta" href="#ride">Find a ride →</a>
+          <button type="button" class="ghost-btn" data-open-form="1">Add my route</button>
+        </div>
+        <dl class="facts">
+          <div><dt>Destination</dt><dd>IIT Hyderabad, Kandi</dd></div>
+          <div><dt>Commute zones</dt><dd>7 across Hyderabad</dd></div>
+          <div><dt>Sign-up</dt><dd>Just a name, no login</dd></div>
+        </dl>
+      </section>
+
+      <section class="block" id="why">
+        <h2>Why this exists</h2>
+        <p class="motto">Meet before the summit. <span>Your first session starts on the road.</span></p>
+        <p class="body-lg">
+          Kandi is a long way from most of Hyderabad. Share the ride and the commute becomes time to meet
+          the people you will spend the day with.
+        </p>
+        <dl class="facts perks">
+          <div><dt>Network on the way</dt><dd>Arrive having already met people who build what you build.</dd></div>
+          <div><dt>Split the cost</dt><dd>Share the fare or the fuel instead of everyone paying alone.</dd></div>
+          <div><dt>Wait less</dt><dd>One shared ride means fewer cab bookings and less waiting around.</dd></div>
+        </dl>
+      </section>
+
+      <section class="block" id="how">
+        <h2>How it works</h2>
+        <ol class="steps">
+          <li>
+            <span class="num">01</span>
+            <h3>Pick your side</h3>
+            <p>Choose <strong>Ride giver</strong> if you have a car or bike with room for someone (and say which), or <strong>Ride taker</strong> if you need a ride.</p>
+          </li>
+          <li>
+            <span class="num">02</span>
+            <h3>Pin your start</h3>
+            <p>Type your area or use your location. We draw your driving route to IIT Hyderabad and show the distance and time.</p>
+          </li>
+          <li>
+            <span class="num">03</span>
+            <h3>See who is on your way</h3>
+            <p>Anyone starting within about 2 km of another person's route shows up, in pickup order for drivers.</p>
+          </li>
+          <li>
+            <span class="num">04</span>
+            <h3>Say hi your way</h3>
+            <p>Pick LinkedIn, email, WhatsApp, or a call or text, whichever that person shared, and agree the pickup point and time.</p>
+          </li>
+        </ol>
+      </section>
+
+      <section class="block roles" id="roles">
+        <div class="role-card giver">
+          <span class="pill giver">Ride giver</span>
+          <h3>You have room to share</h3>
+          <p>Your route is drawn in lime. Riders along it are listed in the order you would pick them up, with how far off your route each one is.</p>
+        </div>
+        <div class="role-card taker">
+          <span class="pill taker">Ride taker</span>
+          <h3>You need a seat</h3>
+          <p>Drivers whose route passes near you are shown first, with their route in cyan. Others in your area are grouped by zone.</p>
+        </div>
+      </section>
+
+      <section class="block" id="trust">
+        <h2>Good to know</h2>
+        <ul class="notes">
+          <li>You choose what to share: LinkedIn, email, WhatsApp, a phone number, or nothing. Contact options show only on people whose route matches yours.</li>
+          <li>Your start is shown as a rough area, not your address.</li>
+          <li>There is no login. Anyone with this link can see names, rough areas, routes and the contact details people added, so keep the link inside attendee groups.</li>
+          <li>The distance and time are a single driving estimate made when you add your route, not live traffic.</li>
+        </ul>
+        <a class="cta" href="#ride">Open the map →</a>
+      </section>
+    </main>
+
+    <!-- ───────── The ride map ───────── -->
+    <section id="ride" class="ride" aria-label="Ride map">
     <div id="app">
       <header class="sign-bar">
         <span class="wordmark">ride2<em>fde</em></span>
@@ -30,7 +128,13 @@
 
       <main class="layout">
         <section class="map-pane" aria-label="Map">
-          <gmp-map-3d id="map3d" center="17.5947,78.1265,0" tilt="65" heading="0" range="4000"></gmp-map-3d>
+          <gmp-map-3d id="map3d" center="17.5947,78.1265,0" tilt="65" heading="0" range="4000" min-altitude="50" max-altitude="150000" hidden></gmp-map-3d>
+          <div id="map2d" class="map-2d"></div>
+          <div class="map-switch" role="group" aria-label="Map style">
+            <button type="button" data-view="map" aria-pressed="true">Map</button>
+            <button type="button" data-view="dark" aria-pressed="false">Dark</button>
+            <button type="button" data-view="3d" aria-pressed="false">3D</button>
+          </div>
         </section>
 
         <aside class="panel" id="zone-panel" aria-live="polite">
@@ -49,11 +153,6 @@
           </label>
 
           <label>
-            Phone (optional — so matches can WhatsApp you)
-            <input type="tel" name="phone" placeholder="98765 43210" />
-          </label>
-
-          <label>
             Starting from
             <input type="text" id="address-input" name="address" placeholder="Start typing your area…" required autocomplete="off" />
           </label>
@@ -63,12 +162,31 @@
             <legend>I'm a</legend>
             <label class="role-option">
               <input type="radio" name="role" value="giver" required />
-              <span><strong>Ride giver</strong><small>I'm driving and can take others</small></span>
+              <span><strong>Ride giver</strong><small>I have a car or bike and can take others</small></span>
             </label>
             <label class="role-option">
               <input type="radio" name="role" value="taker" required checked />
               <span><strong>Ride taker</strong><small>I'm looking for a ride</small></span>
             </label>
+          </fieldset>
+
+          <fieldset class="role-choice vehicle-choice" id="vehicle-choice" hidden>
+            <legend>Your vehicle</legend>
+            <label class="role-option">
+              <input type="radio" name="vehicle" value="car" checked />
+              <span><strong>Car</strong><small>Room for a few people</small></span>
+            </label>
+            <label class="role-option">
+              <input type="radio" name="vehicle" value="bike" />
+              <span><strong>Bike</strong><small>One passenger</small></span>
+            </label>
+          </fieldset>
+
+          <fieldset class="reach-field">
+            <legend>How can people reach you? <span>Optional</span></legend>
+            <div id="contact-rows"></div>
+            <button type="button" id="add-contact-btn" class="link-btn">Add another way</button>
+            <p class="privacy-note">People on your route see these, so share only what you are comfortable with. LinkedIn is a good choice. We show your start as a rough area, not your address.</p>
           </fieldset>
 
           <p id="form-status" class="form-status"></p>
@@ -80,6 +198,26 @@
         </form>
       </dialog>
     </div>
+    </section>
+
+    <footer class="site-footer">
+      <span class="wordmark">ride2<em>fde</em></span>
+      <span>A ride pool for <a href="https://fdesummit.dev/" target="_blank" rel="noopener">FDE Summit</a> attendees going to IIT Hyderabad.</span>
+      <span class="credit">
+        Built with
+        <svg role="img" aria-label="love" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-9.6-9.3C.9 8.3 3 4.5 6.7 4.5c2.1 0 3.7 1.1 5.3 3 1.6-1.9 3.2-3 5.3-3 3.7 0 5.8 3.8 4.3 7.2C19.5 16.4 12 21 12 21z"/></svg>
+        for the community by <a href="https://www.veshwar.dev/" target="_blank" rel="noopener">Eshwar Vemula</a>
+      </span>
+    </footer>
+    <script>
+      // About-section "Add my route" jumps to the map and opens the form (wired once the map has loaded).
+      document.querySelectorAll(".about [data-open-form]").forEach((b) =>
+        b.addEventListener("click", () => {
+          location.hash = "#ride";
+          document.getElementById("open-form-btn")?.click();
+        })
+      );
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

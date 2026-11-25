@@ -1,6 +1,8 @@
-import { initMap, renderAttendeeMarkers, renderRoutes, showPreviewRoute, focusPath } from "./map";
+import { createMap3D } from "./map3d";
+import { createMap2D, type Map2DView } from "./map2d";
+import type { MapView, MapViewName } from "./map-view";
 import { fetchAttendees } from "./api";
-import { renderPanel, rememberZoneToggle, type PanelOptions } from "./panel";
+import { rememberReachToggle, rememberZoneToggle, renderPanel, type PanelOptions } from "./panel";
 import { setupAttendeeForm, MY_ID_KEY } from "./form";
 import { findMatches, type MatchMode } from "./match";
 import { decodePolyline } from "../shared/geo";
@@ -8,8 +10,13 @@ import type { Attendee } from "../shared/types";
 
 const POLL_MS = 15_000;
 const MODE_KEY = "ride2fde:matchMode";
+const VIEW_KEY = "ride2fde:mapView";
 
-type MapEl = Awaited<ReturnType<typeof initMap>>;
+/** The map the viewer is looking at right now. Google's standard flat map is the default. */
+let active: MapView;
+let activeName: MapViewName = "map";
+let map2d: Map2DView | undefined; // one 2D map serves both the "map" and "dark" looks
+let map3d: MapView | undefined;
 
 const view: PanelOptions = { mode: readMode(), showAll: false };
 let latest: Attendee[] = [];
@@ -27,37 +34,87 @@ function currentUser(attendees: Attendee[]): Attendee | null {
   return Number.isFinite(id) && id > 0 ? attendees.find((a) => a.id === id) ?? null : null;
 }
 
-function draw(mapEl: MapEl, focusMine = false) {
+function readView(): MapViewName {
+  try {
+    const saved = localStorage.getItem(VIEW_KEY);
+    return saved === "dark" || saved === "3d" ? saved : "map";
+  } catch {
+    return "map";
+  }
+}
+
+function draw(focusMine = false) {
   const me = currentUser(latest);
   const matches = me ? findMatches(me, latest, view.mode) : [];
 
   renderPanel(latest, me, matches, view);
-  renderAttendeeMarkers(mapEl, latest);
-  renderRoutes(mapEl, me, matches.map((m) => m.attendee));
+  active.renderAttendees(latest, { meId: me?.id ?? null, matchIds: new Set(matches.map((m) => m.attendee.id)) });
+  active.renderRoutes(me, matches.map((m) => m.attendee));
 
-  if (focusMine && me?.route_polyline) focusPath(mapEl, decodePolyline(me.route_polyline));
+  if (focusMine && me?.route_polyline) active.focusPath(decodePolyline(me.route_polyline));
 }
 
-async function refresh(mapEl: MapEl, focusMine = false) {
+async function refresh(focusMine = false) {
   try {
     latest = await fetchAttendees();
-    draw(mapEl, focusMine);
+    draw(focusMine);
   } catch (err) {
     console.error("Failed to refresh attendees", err);
   }
 }
 
+/** Create a map the first time it's needed. The 3D library is only loaded if someone picks 3D. */
+async function getView(name: MapViewName): Promise<MapView> {
+  if (name === "3d") return (map3d ??= await createMap3D());
+  map2d ??= await createMap2D(document.getElementById("map2d")!);
+  map2d.setTheme(name === "dark" ? "dark" : "standard");
+  return map2d;
+}
+
+/** Show one map and hide the others, then draw the current data onto it. */
+async function switchView(name: MapViewName, focusMine = true): Promise<void> {
+  const el3d = document.getElementById("map3d")!;
+  const el2d = document.getElementById("map2d")!;
+  // Show the target first: Google's 2D map needs a visible, sized container when it's created.
+  el3d.hidden = name !== "3d";
+  el2d.hidden = name === "3d";
+
+  try {
+    active = await getView(name);
+  } catch (err) {
+    console.error(`Couldn't load the ${name} map`, err);
+    if (name !== "map") return switchView("map", focusMine); // fall back to the default
+    throw err;
+  }
+  activeName = name;
+
+  document.querySelectorAll<HTMLButtonElement>(".map-switch button").forEach((b) => {
+    b.setAttribute("aria-pressed", String(b.dataset.view === name));
+  });
+  try {
+    localStorage.setItem(VIEW_KEY, name);
+  } catch {
+    /* storage unavailable: the choice just won't persist */
+  }
+  draw(focusMine);
+}
+
 async function main() {
-  const mapEl = await initMap();
   const panel = document.getElementById("zone-panel")!;
+  active = await getView("map"); // the default map is always ready first
 
   setupAttendeeForm(
     () => {
-      showPreviewRoute(mapEl, null);
-      void refresh(mapEl, true);
+      active.showPreview(null);
+      void refresh(true);
     },
-    (polyline) => showPreviewRoute(mapEl, polyline)
+    (polyline) => active.showPreview(polyline)
   );
+
+  document.querySelector(".map-switch")?.addEventListener("click", (e) => {
+    const name = (e.target as HTMLElement).closest<HTMLElement>("[data-view]")?.dataset.view;
+    if ((name === "map" || name === "dark" || name === "3d") && name !== activeName) void switchView(name);
+  });
 
   // One delegated handler for everything clickable inside the side panel.
   panel.addEventListener("click", (e) => {
@@ -72,11 +129,11 @@ async function main() {
       } catch {
         /* storage unavailable: the choice just won't persist */
       }
-      draw(mapEl);
+      draw();
     }
     if (target.dataset.more) {
       view.showAll = target.dataset.more === "1";
-      draw(mapEl);
+      draw();
     }
   });
   // <details> toggles don't bubble, so listen in the capture phase.
@@ -85,16 +142,18 @@ async function main() {
     (e) => {
       const el = e.target as HTMLDetailsElement;
       if (el.dataset?.zone) rememberZoneToggle(el.dataset.zone, el.open);
+      if (el.dataset?.reach) rememberReachToggle(Number(el.dataset.reach), el.open);
     },
     true
   );
 
-  await refresh(mapEl, true); // fit the viewer's own route on first load
+  await refresh(true); // fit the viewer's own route on first load
+  if (readView() !== "map") await switchView(readView(), true); // only if they chose another look before
   setInterval(() => {
-    if (!document.hidden) void refresh(mapEl); // don't poll for a tab nobody is looking at
+    if (!document.hidden) void refresh(); // don't poll for a tab nobody is looking at
   }, POLL_MS);
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) void refresh(mapEl);
+    if (!document.hidden) void refresh();
   });
 }
 

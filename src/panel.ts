@@ -1,10 +1,20 @@
 import { ZONES, VENUE, zoneById } from "../shared/zones";
+import { contactActions } from "../shared/contacts";
 import type { Match, MatchMode } from "./match";
-import type { Attendee, Role } from "../shared/types";
+import { VEHICLE_LABEL, VEHICLE_SEATS, type Attendee, type Role } from "../shared/types";
+import { vehicleIcon } from "./icons";
 
 export interface PanelOptions {
   mode: MatchMode;
   showAll: boolean;
+}
+
+/** "Say hi" menus the viewer has opened, so a refresh doesn't snap them shut. */
+const reachOpen = new Set<number>();
+
+export function rememberReachToggle(id: number, open: boolean): void {
+  if (open) reachOpen.add(id);
+  else reachOpen.delete(id);
 }
 
 /** How many matches to list before "Show more". */
@@ -27,14 +37,33 @@ function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 }
 
-function whatsapp(a: Attendee): string {
-  return a.phone
-    ? `<a class="wa" href="https://wa.me/${encodeURIComponent(a.phone)}" target="_blank" rel="noopener" aria-label="Message ${esc(a.name)} on WhatsApp">WhatsApp</a>`
-    : "";
+/** The "Say hi" dropdown: one link per way the person chose to be reached. */
+function reach(a: Attendee): string {
+  const links = a.contacts.flatMap(contactActions);
+  if (links.length === 0) return `<small class="no-contact">No contact shared</small>`;
+
+  const items = links
+    .map((act) => {
+      const web = act.href.startsWith("https://");
+      return `<a class="reach-link ${act.label.toLowerCase()}" href="${esc(act.href)}"${web ? ' target="_blank" rel="noopener noreferrer"' : ""}>${esc(act.label)}</a>`;
+    })
+    .join("");
+
+  return `<details class="reach" data-reach="${a.id}"${reachOpen.has(a.id) ? " open" : ""}>
+    <summary>Say hi</summary>
+    <div class="reach-menu">${items}</div>
+  </details>`;
 }
 
-function pill(role: Role): string {
-  return `<span class="pill ${role}">${ROLE_LABEL[role]}</span>`;
+function pill(a: Attendee): string {
+  return `<span class="pill ${a.role}">${ROLE_LABEL[a.role]}</span>`;
+}
+
+/** What a ride giver travels in, as an icon plus capacity, so a ride taker can picture it. */
+function vehicleChip(a: Attendee): string {
+  if (a.role !== "giver" || !a.vehicle) return "";
+  const text = `${VEHICLE_LABEL[a.vehicle]} · ${VEHICLE_SEATS[a.vehicle]}`;
+  return `<span class="vehicle ${a.vehicle}" aria-label="${text}">${vehicleIcon(a.vehicle, 20)}${text}</span>`;
 }
 
 function journey(a: Attendee): string {
@@ -49,7 +78,7 @@ function matchNote(me: Attendee, m: Match): string {
   if (me.role === "giver" && m.alongKm != null) {
     return `Pick up about ${Math.max(1, Math.round(m.alongKm))} km in, ${off}`;
   }
-  return me.role === "giver" ? off : `Drives past you, ${off}`;
+  return me.role === "giver" ? off : `${m.attendee.vehicle === "bike" ? "Rides" : "Drives"} past you, ${off}`;
 }
 
 function stop(kind: string, body: string): string {
@@ -60,10 +89,10 @@ function personStop(me: Attendee, m: Match): string {
   const a = m.attendee;
   return stop(
     "match",
-    `<div class="who"><strong>${esc(a.name)}</strong>${pill(a.role)}</div>
+    `<div class="who"><strong>${esc(a.name)}</strong>${pill(a)}${vehicleChip(a)}</div>
      <small class="note">${esc(matchNote(me, m))}</small>
      <small>${esc(a.address)}</small>
-     ${whatsapp(a)}`
+     ${reach(a)}`
   );
 }
 
@@ -114,7 +143,7 @@ function renderRouteSection(me: Attendee, matches: Match[], opts: PanelOptions):
       <ol class="line">
         ${stop(
           "me",
-          `<div class="who"><strong>You</strong>${pill(me.role)}</div>
+          `<div class="who"><strong>You</strong>${pill(me)}${vehicleChip(me)}</div>
            <small>${esc(me.address)}</small>
            <small>${esc(journey(me))}</small>`
         )}
@@ -148,9 +177,8 @@ function renderZones(others: Attendee[], myZone: string | null, title: string): 
             ${group
               .map(
                 (a) => `<li>
-                  <div class="who"><strong>${esc(a.name)}</strong>${pill(a.role)}</div>
+                  <div class="who"><strong>${esc(a.name)}</strong>${pill(a)}${vehicleChip(a)}</div>
                   <small>${esc(a.address)}</small>
-                  ${whatsapp(a)}
                 </li>`
               )
               .join("")}
@@ -168,7 +196,10 @@ function updateStats(attendees: Attendee[]): void {
   const el = document.getElementById("stats");
   if (!el) return;
   el.hidden = attendees.length === 0;
-  el.innerHTML = `<span><b>${givers}</b> giving rides</span><span><b>${takers}</b> need a ride</span>`;
+  const cars = attendees.filter((a) => a.role === "giver" && a.vehicle === "car").length;
+  const bikes = attendees.filter((a) => a.role === "giver" && a.vehicle === "bike").length;
+  const split = [cars ? `${vehicleIcon("car", 13)}${cars}` : "", bikes ? `${vehicleIcon("bike", 13)}${bikes}` : ""].join("");
+  el.innerHTML = `<span><b>${givers}</b> giving rides${split ? `<i class="split">${split}</i>` : ""}</span><span><b>${takers}</b> need a ride</span>`;
 }
 
 export function renderPanel(attendees: Attendee[], me: Attendee | null, matches: Match[], opts: PanelOptions): void {
