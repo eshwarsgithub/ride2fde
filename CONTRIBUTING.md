@@ -33,7 +33,8 @@ Changes that fit these are easy to accept:
 
 ## Getting set up
 
-The full walkthrough is in the [README](README.md#run-it-yourself). The short version:
+The full walkthrough is in the [README](README.md#run-it-yourself). You need **Node.js 22.12 or newer**. The short
+version:
 
 ```bash
 git clone https://github.com/<your-username>/ride2fde.git   # your fork

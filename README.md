@@ -307,7 +307,7 @@ Index: `idx_attendees_zone` on `zone`.
 
 ### Prerequisites
 
-- **Node.js 18 or newer** (built and tested on Node 22)
+- **Node.js 22.12 or newer** (an `.nvmrc` is included, so `nvm use` picks the right one)
 - A **Google Cloud** project with billing enabled (the free monthly allowance is far more than an event needs)
 - A **Cloudflare** account (free tier is enough)
 
