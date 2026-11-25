@@ -5,3 +5,4 @@ dist
 .wrangler
 *.log
 *.tsbuildinfo
+.DS_Store
