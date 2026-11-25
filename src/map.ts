@@ -20,8 +20,8 @@ const markers = new Map<number, { key: string; el: any }>();
 let routeLines: any[] = [];
 let routeSignature = "";
 
-/** Route colours: yours is the deep highway green, matches amber, and the form preview blue. */
-const COLORS = { mine: "#0B5D3B", match: "#FF8A00", preview: "#1F6FEB" };
+/** Route colours match the FDE Summit palette: yours is lime, matches cyan, the form preview white. */
+const COLORS = { mine: "#D2FF00", match: "#00F0FF", preview: "#FFFFFF" };
 
 /** Draw at most this many match routes; more would just be a tangle of lines. */
 export const MAX_DRAWN_ROUTES = 8;
@@ -55,7 +55,7 @@ export function renderAttendeeMarkers(mapEl: Map3DElement, attendees: Attendee[]
 
     const el = new marker3dCtor({
       position: { lat: a.lat, lng: a.lng, altitude: 30 },
-      label: `${a.role === "giver" ? "🚗" : "🙋"} ${a.name}`,
+      label: a.name,
       extruded: true,
     });
     mapEl.append(el);
@@ -75,6 +75,9 @@ function makeLine(mapEl: Map3DElement, path: LatLng[], color: string, width: num
     altitudeMode: "RELATIVE_TO_GROUND",
     strokeColor: color,
     strokeWidth: width,
+    // dark casing keeps the lime/cyan lines readable on the light regular map as well as satellite
+    outerColor: "#08090E",
+    outerWidth: 0.35,
     drawsOccludedSegments: true,
   });
   mapEl.append(line);
@@ -128,7 +131,7 @@ export function focusPath(mapEl: Map3DElement, path: LatLng[]): void {
     2
   );
   mapEl.center = center;
-  mapEl.range = spanKm * 1000 * 1.8;
+  mapEl.range = spanKm * 1000 * 2.7;
   mapEl.tilt = 35;
   mapEl.heading = 0;
 }

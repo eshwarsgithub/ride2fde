@@ -11,8 +11,8 @@ export interface PanelOptions {
 export const LIST_LIMIT = 12;
 
 const ROLE_LABEL: Record<Role, string> = {
-  giver: "🚗 Ride giver",
-  taker: "🙋 Ride taker",
+  giver: "Ride giver",
+  taker: "Ride taker",
 };
 
 /** Zones the viewer has opened/closed by hand, so a refresh doesn't snap them shut. */
