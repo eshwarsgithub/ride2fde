@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest an idea
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check the [ideas list](../blob/main/README.md#known-limitations-and-ideas) first. The project aims to
+        stay **simple and privacy-friendly**, so a short explanation of the problem helps a lot.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Who is affected, and when?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Other options you considered
+  - type: dropdown
+    id: help
+    attributes:
+      label: Would you like to build it?
+      options: ["Yes, I'd like to build it", "Maybe, with some guidance", "No, just suggesting"]
+    validations:
+      required: true

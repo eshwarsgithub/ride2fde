@@ -5,6 +5,10 @@
 point, the app draws your route to the campus, and it shows you everyone whose route passes near yours, so you can
 say hi and arrange the trip.
 
+[![CI](https://github.com/eshwarsgithub/ride2fde/actions/workflows/ci.yml/badge.svg)](https://github.com/eshwarsgithub/ride2fde/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
 **Live:** <https://ride2fde.pages.dev>
 
 ![The map with a ride taker's route and the people on the way](docs/screenshots/map.jpg)
@@ -26,6 +30,8 @@ say hi and arrange the trip.
 - [Configuration reference](#configuration-reference)
 - [Troubleshooting](#troubleshooting)
 - [Known limitations and ideas](#known-limitations-and-ideas)
+- [Contributing](#contributing)
+- [License](#license)
 - [Credits](#credits)
 
 ## Why it exists
@@ -358,13 +364,12 @@ Open <http://localhost:5173>. Vite proxies `/api` to the Functions server on por
 |---|---|
 | `npm run dev` | Vite dev server (the app) on :5173 |
 | `npm run pages:dev` | Cloudflare Pages dev server (API + local D1) on :8788 |
-| `npm run build` | Type-check (`tsc -b`) and build to `dist/` |
+| `npm run typecheck` | Type-check the app and the server function |
+| `npm run build` | Type-check the app and build to `dist/` |
 | `npm run preview` | Preview the production build |
 | `npm run db:migrate:local` | Apply migrations to the local database |
 | `npm run db:migrate:remote` | Apply migrations to the live database |
 | `npm run deploy` | Build and deploy to Cloudflare Pages |
-
-Type-check the backend too: `npx tsc -p functions/tsconfig.json`.
 
 ## Deploy
 
@@ -433,12 +438,50 @@ To reuse this for another event, change `VENUE` and `ZONES` in `shared/zones.ts`
 - Move address search to Google's newer **Places (New)** `PlaceAutocompleteElement`.
 - Add tests for the matching and contact-validation code in `shared/`.
 
+## Contributing
+
+ride2fde is **open source** and contributions are very welcome, from a typo fix to a new feature.
+
+**The short version**
+
+1. **Fork** the repository and create a branch.
+2. Make your change and run `npm run typecheck && npm run build`.
+3. **Open a pull request.** CI runs the same checks automatically, and the maintainer reviews it.
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) first: it covers setup, conventions, the pull request checklist and
+a few things to avoid. By taking part you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). Found a security
+problem? Please report it privately, as described in [SECURITY.md](SECURITY.md).
+
+**Where to start**
+
+Good first contributions, roughly from smallest to biggest:
+
+- **Try it on your phone or browser** and open an issue for anything that looks or behaves wrong.
+- **Improve the docs**: anything in this README that confused you.
+- **Add tests** for the pure functions in `shared/` (`geo.ts` for matching and polylines, `contacts.ts` for
+  validation). There is no test suite yet, so this is a valuable first one.
+- **Accessibility pass**: keyboard use, screen readers, colour contrast.
+- **Departure time**: let people say when they leave, and match only people leaving around the same time.
+- **A "new match" alert** while the tab is open.
+- **Edit and delete my entry.**
+- **Move address search** to Google's newer `PlaceAutocompleteElement`.
+
+Open an issue before starting anything large, so we can agree on the approach.
+
+**Your own copy**
+
+Anyone can run their own instance, for example for a different event: change `VENUE` and `ZONES` in
+`shared/zones.ts` and the copy in `index.html`, then follow [Run it yourself](#run-it-yourself) and
+[Deploy](#deploy). You'll need your own Google Maps key and Cloudflare account.
+
+## License
+
+[MIT](LICENSE), copyright (c) 2026 Eshwar Vemula. You are free to use, copy, modify and share this code, as long as the
+license notice stays with it. Google Maps Platform has its own terms, which apply to anyone running the app with a key.
+
 ## Credits
 
 Built with love for the community by [Eshwar Vemula](https://www.veshwar.dev/).
 
 The visual style follows [fdesummit.dev](https://fdesummit.dev/). Map data and routing by Google Maps Platform.
 This is an independent community tool and is not an official part of FDE Summit.
-
-No open-source license has been chosen yet, so by default all rights are reserved. If you would like others to reuse
-or contribute to this, add a `LICENSE` file (MIT is a common choice).

@@ -2,10 +2,22 @@
   "name": "ride2fde",
   "private": true,
   "version": "0.1.0",
+  "description": "A ride pool for FDE Summit attendees going to IIT Hyderabad: meet before the summit.",
+  "license": "MIT",
+  "author": "Eshwar Vemula (https://www.veshwar.dev/)",
+  "homepage": "https://ride2fde.pages.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eshwarsgithub/ride2fde.git"
+  },
+  "bugs": {
+    "url": "https://github.com/eshwarsgithub/ride2fde/issues"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "typecheck": "tsc -b && tsc -p functions/tsconfig.json",
     "preview": "vite preview",
     "pages:dev": "wrangler pages dev dist --d1=DB=4d6c00a1-507d-41f9-9063-c938e58a30ad --local",
     "db:migrate:local": "wrangler d1 migrations apply ride2fde-db --local",
