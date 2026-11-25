@@ -9,7 +9,7 @@ say hi and arrange the trip.
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-**Live:** <https://ride2fde.pages.dev>
+**Live:** <https://ride2fde.veshwar.dev>
 
 ![The map with a ride taker's route and the people on the way](docs/screenshots/map.jpg)
 
@@ -274,7 +274,7 @@ Errors return `400` with `{ "error": "..." }`, for example `vehicle must be car 
 `Check the LinkedIn details`, or `Use WhatsApp only once`.
 
 ```bash
-curl -X POST https://ride2fde.pages.dev/api/attendees \
+curl -X POST https://ride2fde.veshwar.dev/api/attendees \
   -H 'content-type: application/json' \
   -d '{"name":"Asha","role":"giver","vehicle":"bike","lat":17.49,"lng":78.39,
        "contacts":[{"type":"linkedin","value":"linkedin.com/in/asha-nair"}]}'
@@ -387,6 +387,9 @@ Notes:
   This is why the referrer restriction above matters.
 - Use a different project name if `ride2fde` is taken on your Cloudflare account, and update `name` in
   `wrangler.toml`.
+- **Custom domain (optional):** in the Cloudflare dashboard open *Workers & Pages*, choose the project, then
+  *Custom domains* and *Set up a custom domain*. If the domain's DNS is on the same Cloudflare account, the DNS record
+  is added for you. Remember to add the new address to your Maps key's HTTP referrer list.
 
 ## Configuration reference
 
