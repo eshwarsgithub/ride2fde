@@ -1,6 +1,6 @@
 import { createAttendee } from "./api";
-import { estimateToVenue } from "./distance";
-import type { Attendee, AttendeeInput, TransportMode } from "../shared/types";
+import { routeToVenue, type RouteResult } from "./route";
+import type { Attendee, AttendeeInput, Role } from "../shared/types";
 
 interface PendingLocation {
   lat: number;
@@ -15,7 +15,12 @@ const HYDERABAD_BOUNDS = {
   west: 78.0,
 };
 
-export function setupAttendeeForm(onCreated: (attendee: Attendee) => void): void {
+export const MY_ID_KEY = "ride2fde:myId";
+
+export function setupAttendeeForm(
+  onCreated: (attendee: Attendee) => void,
+  onPreview: (polyline: string | null) => void
+): void {
   const dialog = document.getElementById("attendee-dialog") as HTMLDialogElement;
   const form = document.getElementById("attendee-form") as HTMLFormElement;
   const openBtn = document.getElementById("open-form-btn") as HTMLButtonElement;
@@ -26,11 +31,34 @@ export function setupAttendeeForm(onCreated: (attendee: Attendee) => void): void
   const status = document.getElementById("form-status") as HTMLParagraphElement;
 
   let pending: PendingLocation | null = null;
+  let route: Promise<RouteResult> | null = null;
+  let routeToken = 0;
+
+  const clearPending = () => {
+    pending = null;
+    route = null;
+    routeToken++;
+    submitBtn.disabled = true;
+    onPreview(null);
+  };
 
   const setPending = (loc: PendingLocation) => {
     pending = loc;
     addressInput.value = loc.address;
     submitBtn.disabled = false;
+
+    // Start the route lookup now so the route is drawn on the map while the user finishes the form.
+    const token = ++routeToken;
+    status.textContent = "Finding your route to IITH…";
+    route = routeToVenue(loc);
+    void route.then((r) => {
+      if (token !== routeToken) return; // location changed meanwhile
+      onPreview(r.polyline);
+      const eta = r.eta_min != null ? ` · ~${r.eta_min} min` : "";
+      status.textContent = r.exact
+        ? `Route found: ${r.distance_km} km${eta}`
+        : `Showing a straight-line route (~${r.distance_km} km).`;
+    });
   };
 
   openBtn.addEventListener("click", () => {
@@ -38,7 +66,19 @@ export function setupAttendeeForm(onCreated: (attendee: Attendee) => void): void
     dialog.showModal();
   });
 
-  cancelBtn.addEventListener("click", () => dialog.close());
+  const closeDialog = () => {
+    clearPending();
+    form.reset();
+    status.textContent = "";
+    dialog.close();
+  };
+  cancelBtn.addEventListener("click", closeDialog);
+  dialog.addEventListener("cancel", () => clearPending()); // Esc key
+
+  // Typing a new address invalidates the previously picked place.
+  addressInput.addEventListener("input", () => {
+    if (pending) clearPending();
+  });
 
   google.maps.importLibrary("places").then((lib) => {
     const { Autocomplete } = lib as google.maps.PlacesLibrary;
@@ -55,7 +95,7 @@ export function setupAttendeeForm(onCreated: (attendee: Attendee) => void): void
     });
   });
 
-  useLocationBtn.addEventListener("click", async () => {
+  useLocationBtn.addEventListener("click", () => {
     if (!navigator.geolocation) {
       status.textContent = "Geolocation isn't available on this device.";
       return;
@@ -64,12 +104,15 @@ export function setupAttendeeForm(onCreated: (attendee: Attendee) => void): void
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
-        const { Geocoder } = (await google.maps.importLibrary("geocoding")) as google.maps.GeocodingLibrary;
-        const geocoder = new Geocoder();
-        const { results } = await geocoder.geocode({ location: { lat, lng } });
-        const address = results[0]?.formatted_address ?? `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        let address = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        try {
+          const { Geocoder } = (await google.maps.importLibrary("geocoding")) as google.maps.GeocodingLibrary;
+          const { results } = await new Geocoder().geocode({ location: { lat, lng } });
+          address = results[0]?.formatted_address ?? address;
+        } catch (err) {
+          console.warn("Reverse geocoding failed, using coordinates", err);
+        }
         setPending({ lat, lng, address });
-        status.textContent = "Location set from GPS.";
       },
       () => {
         status.textContent = "Couldn't get your location — try typing your area instead.";
@@ -79,44 +122,39 @@ export function setupAttendeeForm(onCreated: (attendee: Attendee) => void): void
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (!pending) {
+    if (!pending || !route) {
       status.textContent = "Pick a starting location first.";
       return;
     }
 
     submitBtn.disabled = true;
-    status.textContent = "Calculating route to IITH…";
+    status.textContent = "Submitting…";
 
     const fd = new FormData(form);
-    const name = String(fd.get("name") ?? "").trim();
     const phone = String(fd.get("phone") ?? "").trim();
-    const mode = fd.get("mode") as TransportMode;
-    const pooling = fd.get("pooling") === "on";
 
     try {
-      const estimate = await estimateToVenue(pending);
-      status.textContent = "Submitting…";
-
+      const r = await route;
       const input: AttendeeInput = {
-        name,
+        name: String(fd.get("name") ?? "").trim(),
         phone: phone || undefined,
+        role: fd.get("role") as Role,
         address: pending.address,
         lat: pending.lat,
         lng: pending.lng,
-        mode,
-        pooling,
-        distance_km: estimate?.distance_km,
-        eta_min: estimate?.eta_min,
+        route_polyline: r.polyline,
+        distance_km: r.distance_km,
+        eta_min: r.eta_min ?? undefined,
       };
 
       const attendee = await createAttendee(input);
-      onCreated(attendee);
+      localStorage.setItem(MY_ID_KEY, String(attendee.id));
       localStorage.setItem("ride2fde:lastZone", attendee.zone);
 
-      dialog.close();
+      clearPending();
       form.reset();
-      pending = null;
-      submitBtn.disabled = true;
+      dialog.close();
+      onCreated(attendee);
     } catch (err) {
       status.textContent = err instanceof Error ? err.message : "Something went wrong.";
       submitBtn.disabled = false;

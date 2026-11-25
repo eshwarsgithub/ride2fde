@@ -5,4 +5,4 @@ compatibility_date = "2024-11-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "ride2fde-db"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "4d6c00a1-507d-41f9-9063-c938e58a30ad"

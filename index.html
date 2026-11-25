@@ -4,35 +4,46 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ride2fde — Getting to IIT Hyderabad</title>
+    <meta name="theme-color" content="#0B5D3B" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/src/style.css" />
     <script>
       (g => { var h, a, k, p = "The Google Maps JavaScript API", c = "google", l = "importLibrary", q = "__ib__", m = document, b = window; b = b[c] || (b[c] = {}); var d = b.maps || (b.maps = {}), r = new Set, e = new URLSearchParams, u = () => h || (h = new Promise(async (f, n) => { await (a = m.createElement("script")); e.set("libraries", [...r] + ""); for (k in g) e.set(k.replace(/[A-Z]/g, t => "_" + t[0].toLowerCase()), g[k]); e.set("callback", c + ".maps." + q); a.src = `https://maps.${c}apis.com/maps/api/js?` + e; d[q] = f; a.onerror = () => h = n(Error(p + " could not load.")); a.nonce = m.querySelector("script[nonce]")?.nonce || ""; m.head.append(a); })); d[l] ? console.warn(p + " only loads once. Ignoring:", g) : d[l] = (f, ...n) => r.add(f) && u().then(() => d[l](f, ...n)); })({
         key: "%VITE_GOOGLE_MAPS_API_KEY%",
-        v: "alpha",
+        v: "weekly",
       });
     </script>
   </head>
   <body>
     <div id="app">
-      <header class="topbar">
-        <h1>ride2fde</h1>
-        <p class="subtitle">Getting to FDE Summit @ IIT Hyderabad</p>
-        <button id="open-form-btn" class="primary-btn">I'm coming too</button>
+      <header class="sign-bar">
+        <div class="sign" role="banner">
+          <span class="wordmark">ride2fde</span>
+          <span class="dest">
+            <strong>IIT Hyderabad</strong>
+            <small>Kandi campus, FDE Summit</small>
+          </span>
+          <span class="stats" id="stats" aria-live="polite" hidden></span>
+        </div>
+        <button id="open-form-btn" class="cta">I'm coming too</button>
       </header>
 
       <main class="layout">
-        <section class="map-pane">
+        <section class="map-pane" aria-label="Map">
           <gmp-map-3d id="map3d" center="17.5947,78.1265,0" tilt="65" heading="0" range="4000"></gmp-map-3d>
         </section>
 
-        <aside class="panel" id="zone-panel">
-          <p class="panel-empty">Loading attendees…</p>
+        <aside class="panel" id="zone-panel" aria-live="polite">
+          <p class="empty">Loading the map…</p>
         </aside>
       </main>
 
       <dialog id="attendee-dialog">
         <form id="attendee-form" method="dialog">
-          <h2>I'm coming too</h2>
+          <h2>Pin your start point</h2>
+          <p class="dialog-hint">We'll draw your route to IIT Hyderabad and show who's on the way.</p>
 
           <label>
             Name
@@ -40,7 +51,7 @@
           </label>
 
           <label>
-            Phone (optional, for WhatsApp)
+            Phone (optional — so matches can WhatsApp you)
             <input type="tel" name="phone" placeholder="98765 43210" />
           </label>
 
@@ -48,30 +59,25 @@
             Starting from
             <input type="text" id="address-input" name="address" placeholder="Start typing your area…" required autocomplete="off" />
           </label>
-          <button type="button" id="use-location-btn" class="link-btn">Use my current location instead</button>
+          <button type="button" id="use-location-btn" class="link-btn">Use my current location</button>
 
-          <label>
-            Mode of transport
-            <select name="mode" required>
-              <option value="car">Car</option>
-              <option value="bike">Bike</option>
-              <option value="auto">Auto</option>
-              <option value="cab">Cab (Ola/Uber/Rapido)</option>
-              <option value="public_transport">Public transport</option>
-              <option value="walking">Walking</option>
-            </select>
-          </label>
-
-          <label class="checkbox-row">
-            <input type="checkbox" name="pooling" checked />
-            Open to pooling a ride with others nearby
-          </label>
+          <fieldset class="role-choice">
+            <legend>I'm a</legend>
+            <label class="role-option">
+              <input type="radio" name="role" value="giver" required />
+              <span><strong>🚗 Ride giver</strong><small>I'm driving and can take others</small></span>
+            </label>
+            <label class="role-option">
+              <input type="radio" name="role" value="taker" required checked />
+              <span><strong>🙋 Ride taker</strong><small>I'm looking for a ride</small></span>
+            </label>
+          </fieldset>
 
           <p id="form-status" class="form-status"></p>
 
           <div class="dialog-actions">
-            <button type="button" id="cancel-btn" class="secondary-btn">Cancel</button>
-            <button type="submit" id="submit-btn" class="primary-btn" disabled>Submit</button>
+            <button type="button" id="cancel-btn" class="ghost-btn">Cancel</button>
+            <button type="submit" id="submit-btn" class="cta" disabled>Add my route</button>
           </div>
         </form>
       </dialog>

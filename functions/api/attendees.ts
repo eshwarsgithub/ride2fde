@@ -1,11 +1,13 @@
 import { nearestZone } from "../../shared/zones";
-import type { Attendee, AttendeeInput, TransportMode } from "../../shared/types";
+import { ROUTE_TOLERANCE_KM, decodePolyline, encodePolyline, simplifyPath, straightLineRoute } from "../../shared/geo";
+import type { Attendee, AttendeeInput, Role } from "../../shared/types";
 
 interface Env {
   DB: D1Database;
 }
 
-const MODES: TransportMode[] = ["car", "bike", "auto", "cab", "public_transport", "walking"];
+const ROLES: Role[] = ["giver", "taker"];
+const MAX_POLYLINE_LEN = 30_000;
 
 function digitsOnly(s: string): string {
   return s.replace(/[^\d]/g, "");
@@ -23,12 +25,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
     "SELECT * FROM attendees ORDER BY zone ASC, distance_km ASC"
   ).all<Attendee>();
 
-  const attendees = (results ?? []).map((r) => ({
-    ...r,
-    pooling: Boolean(r.pooling),
-  }));
-
-  return new Response(JSON.stringify({ attendees }), {
+  return new Response(JSON.stringify({ attendees: results ?? [] }), {
     headers: { "content-type": "application/json" },
   });
 };
@@ -45,29 +42,40 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const address = typeof body.address === "string" ? body.address.trim() : "";
   const lat = Number(body.lat);
   const lng = Number(body.lng);
-  const mode = body.mode;
+  const role = body.role;
 
-  if (!name) return badRequest("name is required");
-  if (!address) return badRequest("address is required");
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return badRequest("lat/lng must be numbers");
-  if (!MODES.includes(mode)) return badRequest(`mode must be one of: ${MODES.join(", ")}`);
+  if (!name || name.length > 80) return badRequest("name is required (max 80 characters)");
+  if (!address || address.length > 300) return badRequest("address is required (max 300 characters)");
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+    return badRequest("lat/lng must be valid coordinates");
+  }
+  if (!ROLES.includes(role)) return badRequest(`role must be one of: ${ROLES.join(", ")}`);
 
-  const phone = body.phone ? digitsOnly(body.phone) : null;
-  const pooling = body.pooling === false ? 0 : 1;
+  const phone = body.phone ? digitsOnly(String(body.phone)).slice(0, 15) : null;
   const distance_km = Number.isFinite(Number(body.distance_km)) ? Number(body.distance_km) : null;
   const eta_min = Number.isFinite(Number(body.eta_min)) ? Number(body.eta_min) : null;
+
+  // Accept the client's route only if it decodes to a sane path; otherwise fall back to a straight line.
+  let route_polyline = typeof body.route_polyline === "string" ? body.route_polyline : "";
+  const decoded = route_polyline && route_polyline.length <= MAX_POLYLINE_LEN ? decodePolyline(route_polyline) : [];
+  if (decoded.length < 2 || decoded.some((p) => !Number.isFinite(p.lat) || !Number.isFinite(p.lng))) {
+    route_polyline = straightLineRoute({ lat, lng });
+  } else {
+    // Store a slim route: it keeps the shape but is ~95% smaller to send and faster to match.
+    route_polyline = encodePolyline(simplifyPath(decoded, ROUTE_TOLERANCE_KM));
+  }
 
   const zone = nearestZone({ lat, lng }).id;
 
   const inserted = await env.DB.prepare(
-    `INSERT INTO attendees (name, phone, address, lat, lng, zone, mode, pooling, distance_km, eta_min)
+    `INSERT INTO attendees (name, phone, role, address, lat, lng, zone, route_polyline, distance_km, eta_min)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      RETURNING *`
   )
-    .bind(name, phone, address, lat, lng, zone, mode, pooling, distance_km, eta_min)
+    .bind(name, phone, role, address, lat, lng, zone, route_polyline, distance_km, eta_min)
     .first<Attendee>();
 
-  return new Response(JSON.stringify({ attendee: { ...inserted, pooling: Boolean(inserted?.pooling) } }), {
+  return new Response(JSON.stringify({ attendee: inserted }), {
     status: 201,
     headers: { "content-type": "application/json" },
   });

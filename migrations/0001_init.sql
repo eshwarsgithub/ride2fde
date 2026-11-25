@@ -1,4 +1,4 @@
-CREATE TABLE attendees (
+CREATE TABLE IF NOT EXISTS attendees (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   phone TEXT,                 -- optional, digits only, used to build a wa.me link
@@ -13,4 +13,4 @@ CREATE TABLE attendees (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX idx_attendees_zone ON attendees(zone);
+CREATE INDEX IF NOT EXISTS idx_attendees_zone ON attendees(zone);
