@@ -19,7 +19,7 @@ acknowledge a report within a week and to keep you updated.
 
 ## What is covered
 
-The latest code on `main` and the live site at <https://ride2fde.pages.dev>. Examples of things we want to hear
+The latest code on `main` and the live site at <https://ride2fde.veshwar.dev>. Examples of things we want to hear
 about: a way to read or change other people's data that the app doesn't intend to allow, injection or cross-site
 scripting through names, contact details or the API, or secrets exposed in the repository.
 

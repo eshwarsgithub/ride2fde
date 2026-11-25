@@ -5,7 +5,7 @@
   "description": "A ride pool for FDE Summit attendees going to IIT Hyderabad: meet before the summit.",
   "license": "MIT",
   "author": "Eshwar Vemula (https://www.veshwar.dev/)",
-  "homepage": "https://ride2fde.pages.dev",
+  "homepage": "https://ride2fde.veshwar.dev",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/eshwarsgithub/ride2fde.git"
