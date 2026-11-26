@@ -2,7 +2,7 @@ import { nearestZone } from "../../shared/zones";
 import { ROUTE_TOLERANCE_KM, decodePolyline, encodePolyline, simplifyPath, straightLineRoute } from "../../shared/geo";
 import { normalizeContacts, type Contact } from "../../shared/contacts";
 import { json, roundToGrid } from "../../shared/server";
-import { VEHICLES, type Attendee, type AttendeeInput, type Role, type Vehicle } from "../../shared/types";
+import { MAX_NAME_LENGTH, MIN_NAME_LENGTH, VEHICLES, type Attendee, type AttendeeInput, type Role, type Vehicle } from "../../shared/types";
 
 interface Env {
   DB: D1Database;
@@ -44,7 +44,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const lng = Number(body.lng);
   const role = body.role;
 
-  if (!name || name.length > 80) return badRequest("name is required (max 80 characters)");
+  if (name.length < MIN_NAME_LENGTH || name.length > MAX_NAME_LENGTH) {
+    return badRequest(`name must be ${MIN_NAME_LENGTH} to ${MAX_NAME_LENGTH} characters`);
+  }
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
     return badRequest("lat/lng must be valid coordinates");
   }

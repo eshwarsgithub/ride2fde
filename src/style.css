@@ -1334,11 +1334,13 @@ gmp-map-3d[hidden],
 
   .map-pane {
     min-height: 38vh;
+    min-height: 38dvh;
   }
 
   .panel {
     width: auto;
     max-height: 46vh;
+    max-height: 46dvh;
     padding: 16px;
     border-right: none;
     border-top: 1px solid var(--line-15);
@@ -1752,12 +1754,7 @@ html {
 
   .ride {
     height: auto;
-    min-height: 0;
-  }
-
-  #app {
-    height: calc(100vh - var(--nav-h));
-    min-height: 640px;
+    min-height: 600px;
   }
 }
 
@@ -1769,6 +1766,7 @@ html {
    the visible screen. dvh follows the toolbar as it slides away. The vh line above stays as the fallback. */
 .ride {
   height: calc(100dvh - var(--nav-h));
+  overflow: hidden; /* the map and list stay inside this section and can never run over the footer */
 }
 
 dialog {

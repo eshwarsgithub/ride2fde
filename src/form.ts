@@ -7,7 +7,7 @@ import {
   normalizeContacts,
   type ContactType,
 } from "../shared/contacts";
-import type { Attendee, AttendeeInput, Role, Vehicle } from "../shared/types";
+import { MIN_NAME_LENGTH, type Attendee, type AttendeeInput, type Role, type Vehicle } from "../shared/types";
 
 interface PendingLocation {
   lat: number;
@@ -252,6 +252,14 @@ export function setupAttendeeForm(
 
     // Check the contact details before anything is sent.
     const rows = rowOf();
+    const nameInput = form.elements.namedItem("name") as HTMLInputElement;
+    if (nameInput.value.trim().length < MIN_NAME_LENGTH) {
+      status.textContent = `Please enter your name (at least ${MIN_NAME_LENGTH} characters).`;
+      delete status.dataset.error;
+      nameInput.focus();
+      return;
+    }
+
     const { contacts, error } = normalizeContacts(
       rows.map((r) => ({ type: selectOf(r).value, value: inputOf(r).value }))
     );

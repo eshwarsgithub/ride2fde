@@ -1,5 +1,9 @@
 import type { Contact } from "./contacts";
 
+/** Shortest name the form and the server accept (after trimming spaces). */
+export const MIN_NAME_LENGTH = 3;
+export const MAX_NAME_LENGTH = 80;
+
 export type Role = "giver" | "taker";
 
 /** What a ride giver travels in. Takers have none. */
