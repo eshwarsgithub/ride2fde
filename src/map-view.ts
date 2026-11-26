@@ -7,7 +7,7 @@ export interface Relations {
   matchIds: Set<number>;
 }
 
-/** What the app needs from a map, so the 3D map and the dark 2D map are interchangeable. */
+/** What the app needs from a map, whichever look (standard, dark or 3D) is showing. */
 export interface MapView {
   renderAttendees(attendees: Attendee[], who: Relations): void;
   /** Draw the viewer's own route and their closest matches' routes. */
@@ -18,8 +18,13 @@ export interface MapView {
   focusPath(path: LatLng[]): void;
 }
 
-/** "map" = Google's standard flat map (the default), "dark" = the same map restyled dark, "3d" = Google's 3D map. */
-export type MapViewName = "map" | "dark" | "3d";
+/**
+ * "map" = the standard OpenStreetMap look (the default), "dark" = the same map restyled dark,
+ * "3d" = tilted with raised buildings, "google" = the optional Google Maps view (only with a Google key).
+ */
+export type MapViewName = "map" | "dark" | "3d" | "google";
+/** The looks the free OpenStreetMap map draws itself. */
+export type OsmViewName = Exclude<MapViewName, "google">;
 
 /** Route colours follow the FDE Summit palette: yours is lime, matches cyan, the form preview white. */
 export const COLORS = { mine: "#D2FF00", match: "#00F0FF", preview: "#FFFFFF" };

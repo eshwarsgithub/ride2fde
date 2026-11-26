@@ -30,8 +30,10 @@ These are documented limitations, so reports about them alone aren't needed:
 - **There is no login.** Everything people add, including the contact details they choose to share, is returned by
   the public API and visible to anyone who has the link. The app only *displays* contact options on matching people.
   See [Contacts and privacy](README.md#contacts-and-privacy).
-- **The Google Maps key is visible in the page source.** That is how browser Maps keys work. It is protected by
-  referrer and API restrictions on Google's side.
+- **Search text and route points go to public OpenStreetMap services** (Photon for search, OSRM for routes)
+  straight from the browser. No keys are involved.
+- **If the optional Google Maps view is turned on, its key is visible in the page source.** That is how browser Maps
+  keys work. Protect it with HTTP-referrer and API restrictions in Google Cloud (see the README).
 
 ## Please don't
 

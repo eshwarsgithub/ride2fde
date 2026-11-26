@@ -6,16 +6,11 @@
     <title>ride2fde — Getting to IIT Hyderabad</title>
     <meta name="theme-color" content="#07080B" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Address search (Photon) and routing (OSRM) are the only other servers the page talks to:
+         open the connections early so the first search and route don't pay for the handshake. -->
+    <link rel="preconnect" href="https://photon.komoot.io" crossorigin />
+    <link rel="preconnect" href="https://router.project-osrm.org" crossorigin />
     <link rel="stylesheet" href="/src/style.css" />
-    <script>
-      (g => { var h, a, k, p = "The Google Maps JavaScript API", c = "google", l = "importLibrary", q = "__ib__", m = document, b = window; b = b[c] || (b[c] = {}); var d = b.maps || (b.maps = {}), r = new Set, e = new URLSearchParams, u = () => h || (h = new Promise(async (f, n) => { await (a = m.createElement("script")); e.set("libraries", [...r] + ""); for (k in g) e.set(k.replace(/[A-Z]/g, t => "_" + t[0].toLowerCase()), g[k]); e.set("callback", c + ".maps." + q); a.src = `https://maps.${c}apis.com/maps/api/js?` + e; d[q] = f; a.onerror = () => h = n(Error(p + " could not load.")); a.nonce = m.querySelector("script[nonce]")?.nonce || ""; m.head.append(a); })); d[l] ? console.warn(p + " only loads once. Ignoring:", g) : d[l] = (f, ...n) => r.add(f) && u().then(() => d[l](f, ...n)); })({
-        key: "%VITE_GOOGLE_MAPS_API_KEY%",
-        v: "weekly",
-      });
-    </script>
   </head>
   <body>
     <!-- ───────── Site nav ───────── -->
@@ -129,13 +124,16 @@
 
       <main class="layout">
         <section class="map-pane" aria-label="Map">
-          <gmp-map-3d id="map3d" center="17.5947,78.1265,0" tilt="65" heading="0" range="4000" min-altitude="50" max-altitude="150000" hidden></gmp-map-3d>
           <div id="map2d" class="map-2d"></div>
+          <!-- the optional Google Maps view: shown only when the site is built with a Google key -->
+          <div id="map-google" class="map-google" hidden><div class="map-google-canvas"></div></div>
           <div class="map-switch" role="group" aria-label="Map style">
             <button type="button" data-view="map" aria-pressed="true">Map</button>
             <button type="button" data-view="dark" aria-pressed="false">Dark</button>
             <button type="button" data-view="3d" aria-pressed="false">3D</button>
+            <button type="button" data-view="google" aria-pressed="false" hidden>Google</button>
           </div>
+          <p class="map-toast" id="map-toast" role="status" hidden></p>
         </section>
 
         <aside class="panel" id="zone-panel" aria-live="polite">
@@ -153,10 +151,13 @@
             <input type="text" name="name" required minlength="3" maxlength="80" autocomplete="name" />
           </label>
 
-          <label>
-            Starting from
-            <input type="text" id="address-input" name="address" placeholder="Start typing your area…" required autocomplete="off" />
-          </label>
+          <div class="address-field">
+            <label>
+              Starting from
+              <input type="text" id="address-input" name="address" placeholder="Start typing your area…" required autocomplete="off" />
+            </label>
+            <ul id="address-suggestions" class="suggestions" hidden></ul>
+          </div>
           <button type="button" id="use-location-btn" class="link-btn">Use my current location</button>
 
           <fieldset class="role-choice">
@@ -186,6 +187,7 @@
           <fieldset class="reach-field">
             <legend>How can people reach you? <span>Optional</span></legend>
             <div id="contact-rows"></div>
+            <p id="contact-error" class="field-error" role="alert" hidden></p>
             <button type="button" id="add-contact-btn" class="link-btn">Add another way</button>
             <p class="privacy-note">People on your route see these, so share only what you are comfortable with. LinkedIn is a good choice. We show your start as a rough area, not your address.</p>
           </fieldset>

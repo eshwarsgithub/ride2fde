@@ -40,16 +40,15 @@ version:
 git clone https://github.com/<your-username>/ride2fde.git   # your fork
 cd ride2fde
 npm install
-cp .env.example .env            # add your own Google Maps key (see the README)
+npm run map:assets              # downloads the map data for the region (~38 MB), once
 npm run db:migrate:local        # creates the local database, no Cloudflare account needed
 npm run build                   # once
 npm run pages:dev               # terminal 1: the API on :8788
 npm run dev                     # terminal 2: the app on :5173
 ```
 
-You need **your own Google Maps API key** with the Maps JavaScript, Places, Geocoding and Routes APIs enabled. The
-project's own key is not (and will never be) in the repository. For local work you can leave the `database_id` in
-`wrangler.toml` as it is.
+No map API key is needed: the map, search and routing use free OpenStreetMap services. For local work you can leave
+the `database_id` in `wrangler.toml` as it is.
 
 ## Making a change
 

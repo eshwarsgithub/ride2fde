@@ -1,5 +1,6 @@
 import { createAttendee } from "./api";
 import { routeToVenue, type RouteResult } from "./route";
+import { attachPlaceSearch, reverseGeocode } from "./search";
 import {
   CONTACT_LABEL,
   CONTACT_PLACEHOLDER,
@@ -18,24 +19,7 @@ interface PendingLocation {
   area: string;
 }
 
-const HYDERABAD_BOUNDS = {
-  north: 17.75,
-  south: 17.1,
-  east: 78.75,
-  west: 78.0,
-};
-
 export const MY_ID_KEY = "ride2fde:myId";
-
-/** The neighbourhood-level name from a Google place, so we never store a street address. */
-function areaFromComponents(components: google.maps.GeocoderAddressComponent[] | undefined): string {
-  if (!components) return "";
-  for (const type of ["sublocality_level_1", "sublocality", "neighborhood", "locality"]) {
-    const hit = components.find((c) => c.types.includes(type));
-    if (hit) return hit.long_name;
-  }
-  return "";
-}
 
 export function setupAttendeeForm(
   onCreated: (attendee: Attendee) => void,
@@ -50,6 +34,8 @@ export function setupAttendeeForm(
   const submitBtn = document.getElementById("submit-btn") as HTMLButtonElement;
   const status = document.getElementById("form-status") as HTMLParagraphElement;
   const rowsEl = document.getElementById("contact-rows") as HTMLDivElement;
+  // shown right under the contact boxes: on a phone the status line at the bottom of the form is off-screen
+  const contactError = document.getElementById("contact-error") as HTMLParagraphElement;
   const addContactBtn = document.getElementById("add-contact-btn") as HTMLButtonElement;
   const vehicleEl = document.getElementById("vehicle-choice") as HTMLFieldSetElement;
 
@@ -74,6 +60,8 @@ export function setupAttendeeForm(
       for (const option of select.options) option.disabled = option.value !== type && used.has(option.value as ContactType);
       input.placeholder = CONTACT_PLACEHOLDER[type];
       input.inputMode = type === "linkedin" ? "url" : type === "email" ? "email" : "tel";
+      // a phone number is 10 digits; room for a +91 prefix and spaces, but not a paragraph
+      input.maxLength = type === "whatsapp" || type === "phone" ? 16 : 120;
       input.setAttribute("aria-label", `${CONTACT_LABEL[type]} details`);
       (row.querySelector(".contact-remove") as HTMLElement).hidden = rows.length === 1;
     }
@@ -137,12 +125,16 @@ export function setupAttendeeForm(
   });
 
   // A contact error clears as soon as the person starts fixing it.
-  rowsEl.addEventListener("input", () => {
-    if (status.dataset.error === "contact") {
-      status.dataset.error = "";
-      status.textContent = "";
-    }
-  });
+  const clearContactError = () => {
+    contactError.hidden = true;
+    contactError.textContent = "";
+    rowsEl.querySelectorAll("[aria-invalid]").forEach((el) => {
+      el.removeAttribute("aria-invalid");
+      el.removeAttribute("aria-describedby");
+    });
+  };
+  rowsEl.addEventListener("input", clearContactError);
+  rowsEl.addEventListener("change", clearContactError); // switching WhatsApp ↔ LinkedIn etc.
 
   // ───────────── location + route ─────────────
 
@@ -182,6 +174,7 @@ export function setupAttendeeForm(
     clearPending();
     form.reset();
     resetRows();
+    clearContactError();
     syncVehicle();
     status.textContent = "";
     dialog.close();
@@ -194,25 +187,9 @@ export function setupAttendeeForm(
     if (pending) clearPending();
   });
 
-  google.maps.importLibrary("places").then((lib) => {
-    const { Autocomplete } = lib as google.maps.PlacesLibrary;
-    const autocomplete = new Autocomplete(addressInput, {
-      bounds: HYDERABAD_BOUNDS,
-      componentRestrictions: { country: "in" },
-      fields: ["formatted_address", "geometry", "address_components"],
-    });
-    autocomplete.addListener("place_changed", () => {
-      const place = autocomplete.getPlace();
-      const loc = place.geometry?.location;
-      if (!loc) return;
-      setPending({
-        lat: loc.lat(),
-        lng: loc.lng(),
-        address: place.formatted_address ?? addressInput.value,
-        area: areaFromComponents(place.address_components),
-      });
-    });
-  });
+  attachPlaceSearch(addressInput, document.getElementById("address-suggestions") as HTMLUListElement, (place) =>
+    setPending({ lat: place.lat, lng: place.lng, address: place.label, area: place.area })
+  );
 
   useLocationBtn.addEventListener("click", () => {
     if (!navigator.geolocation) {
@@ -226,10 +203,11 @@ export function setupAttendeeForm(
         let address = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
         let area = "";
         try {
-          const { Geocoder } = (await google.maps.importLibrary("geocoding")) as google.maps.GeocodingLibrary;
-          const { results } = await new Geocoder().geocode({ location: { lat, lng } });
-          address = results[0]?.formatted_address ?? address;
-          area = areaFromComponents(results[0]?.address_components);
+          const place = await reverseGeocode(lat, lng);
+          if (place) {
+            address = place.label;
+            area = place.area;
+          }
         } catch (err) {
           console.warn("Reverse geocoding failed, using coordinates", err);
         }
@@ -264,10 +242,14 @@ export function setupAttendeeForm(
       rows.map((r) => ({ type: selectOf(r).value, value: inputOf(r).value }))
     );
     if (error) {
-      status.textContent = error;
-      status.dataset.error = "contact";
       const bad = rows.find((r) => inputOf(r).value.trim() !== "" && !normalizeContacts([{ type: selectOf(r).value, value: inputOf(r).value }]).contacts.length);
-      (bad ? inputOf(bad) : inputOf(rows[0])).focus();
+      const field = bad ? inputOf(bad) : inputOf(rows[0]);
+      contactError.textContent = error;
+      contactError.hidden = false;
+      field.setAttribute("aria-invalid", "true");
+      field.setAttribute("aria-describedby", "contact-error");
+      field.focus();
+      contactError.scrollIntoView({ block: "nearest" });
       return;
     }
 
@@ -298,6 +280,7 @@ export function setupAttendeeForm(
       clearPending();
       form.reset();
       resetRows();
+      clearContactError();
       syncVehicle();
       dialog.close();
       onCreated(attendee);
