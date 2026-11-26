@@ -161,7 +161,7 @@ export function setupAttendeeForm(
       const eta = r.eta_min != null ? ` · ~${r.eta_min} min` : "";
       status.textContent = r.exact
         ? `Route found: ${r.distance_km} km${eta}`
-        : `Showing a straight-line route (~${r.distance_km} km).`;
+        : `Couldn't reach the routing service, so this is a straight line (~${r.distance_km} km). It switches to the road route automatically.`;
     });
   };
 

@@ -79,7 +79,9 @@ type PinKind = "me" | "match" | "other" | "venue";
 function tagText(kind: PinKind, a?: Attendee): string {
   if (kind === "me") return "YOU";
   if (kind === "venue") return "IIT HYDERABAD · KANDI";
-  return (a?.name ?? "").split(" ")[0].toUpperCase();
+  const first = (a?.name ?? "").split(" ")[0].toUpperCase();
+  // the hover tag on everyone else's square also says which side of the pool they are on
+  return kind === "other" && a ? `${first} · ${a.role === "giver" ? "RIDE GIVER" : "RIDE TAKER"}` : first;
 }
 
 function pinElement(kind: PinKind, tag: string, vehicle: Vehicle | null = null): HTMLElement {
@@ -164,12 +166,14 @@ export async function createMap(container: HTMLElement): Promise<MapController> 
   new maplibregl.Marker({ element: pinElement("venue", tagText("venue")) }).setLngLat(VENUE_CENTER).addTo(map);
 
   // ── Legend (bottom left) and zoom buttons (bottom right), as in the design ──
+  const HINT = window.matchMedia("(pointer: coarse)").matches ? "Tap a pin to see who it is and their route" : "Hover over a pin to see who it is and their route";
   const legend = document.createElement("div");
   legend.className = "map-legend";
   legend.innerHTML = `
     <span><i class="swatch lime"></i>Your route</span>
     <span><i class="swatch cyan"></i>On your way</span>
     <span><i class="swatch grey"></i>Elsewhere</span>
+    <span class="legend-hint" title="${HINT}"><i class="hint-i">i</i>${HINT}</span>
     <span class="legend-vehicles">${vehicleIcon("car", 16)}Car ${vehicleIcon("bike", 16)}Bike</span>`;
 
   const zoom = document.createElement("div");
@@ -192,6 +196,7 @@ export async function createMap(container: HTMLElement): Promise<MapController> 
   type RouteFeature = Feature<LineString, { color: string; width: number; opacity: number; glow: boolean; order: number }>;
   let routeFeatures: RouteFeature[] = [];
   let previewFeatures: RouteFeature[] = [];
+  let hoverFeatures: RouteFeature[] = [];
   let signature = "";
   let view: OsmViewName = "map";
 
@@ -203,7 +208,7 @@ export async function createMap(container: HTMLElement): Promise<MapController> 
 
   function pushRoutes() {
     const source = map.getSource("routes") as GeoJSONSource | undefined;
-    source?.setData({ type: "FeatureCollection", features: [...routeFeatures, ...previewFeatures] });
+    source?.setData({ type: "FeatureCollection", features: [...routeFeatures, ...hoverFeatures, ...previewFeatures] });
   }
 
   /** Adds the route layers to whatever style is loaded. A style change wipes them, so this runs after each one. */
@@ -245,11 +250,18 @@ export async function createMap(container: HTMLElement): Promise<MapController> 
   }
 
   const pins = new Map<number, { key: string; marker: maplibregl.Marker }>();
+  function showHover(polyline: string | null): void {
+    hoverFeatures = polyline ? [feature(decodePolyline(polyline), COLORS.hover, 5, 3, { glow: true })] : [];
+    pushRoutes();
+  }
+  const byId = new Map<number, Attendee>(); // latest data, so a hover always draws the current route
 
   return {
     renderAttendees(attendees: Attendee[], who: Relations) {
       const seen = new Set<number>();
+      byId.clear();
       for (const a of attendees) {
+        byId.set(a.id, a);
         seen.add(a.id);
         const kind: PinKind = a.id === who.meId ? "me" : who.matchIds.has(a.id) ? "match" : "other";
         const key = `${markerKey(a)}|${kind}`;
@@ -258,6 +270,12 @@ export async function createMap(container: HTMLElement): Promise<MapController> 
         existing?.marker.remove();
 
         const el = pinElement(kind, tagText(kind, a), a.role === "giver" ? a.vehicle : null);
+        if (kind === "other") {
+          // hovering (or tapping) a grey square draws that person's route
+          const dot = el.querySelector(".pin-dot")!;
+          dot.addEventListener("mouseenter", () => showHover(byId.get(a.id)?.route_polyline ?? null));
+          dot.addEventListener("mouseleave", () => showHover(null));
+        }
         const marker = new maplibregl.Marker({ element: el }).setLngLat([a.lng, a.lat]).addTo(map);
         pins.set(a.id, { key, marker });
       }
@@ -275,14 +293,17 @@ export async function createMap(container: HTMLElement): Promise<MapController> 
       signature = next;
 
       routeFeatures = [];
+      // Someone who hasn't added a route yet still sees everyone's routes (drawn here as "matches").
+      for (const m of drawn) {
+        if (m.route_polyline) routeFeatures.push(feature(decodePolyline(m.route_polyline), COLORS.match, 4, 1, { opacity: 0.85 }));
+      }
       if (mine) {
-        for (const m of drawn) {
-          if (m.route_polyline) routeFeatures.push(feature(decodePolyline(m.route_polyline), COLORS.match, 4, 1, { opacity: 0.85 }));
-        }
         if (mine.route_polyline) routeFeatures.push(feature(decodePolyline(mine.route_polyline), COLORS.mine, 5, 2, { glow: true }));
       }
       pushRoutes();
     },
+
+    showHoverRoute: showHover,
 
     showPreview(polyline: string | null) {
       previewFeatures = [];

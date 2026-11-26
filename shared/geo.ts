@@ -63,6 +63,11 @@ export function straightLineRoute(start: LatLng): string {
   return encodePolyline([start, { lat: VENUE.lat, lng: VENUE.lng }]);
 }
 
+/** True for a route that is only the start and the venue, i.e. the straight-line fallback rather than a road route. */
+export function isStraightLine(encoded: string | null): boolean {
+  return !encoded || decodePolyline(encoded).length <= 2;
+}
+
 /**
  * Nearest point on a path to `point`, using a local flat-earth projection per segment.
  * Returns the distance to the path and how far along the path (from its start) that nearest point is.

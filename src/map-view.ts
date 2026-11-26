@@ -14,6 +14,8 @@ export interface MapView {
   renderRoutes(mine: Attendee | null, matches: Attendee[]): void;
   /** Show (or clear, with null) the route preview while the form is open. */
   showPreview(polyline: string | null): void;
+  /** Show (or clear, with null) the route of the pin the mouse is over. Optional: the Google view doesn't have it. */
+  showHoverRoute?(polyline: string | null): void;
   /** Re-centre the camera so the whole path is in view. */
   focusPath(path: LatLng[]): void;
 }
@@ -27,14 +29,14 @@ export type MapViewName = "map" | "dark" | "3d" | "google";
 export type OsmViewName = Exclude<MapViewName, "google">;
 
 /** Route colours follow the FDE Summit palette: yours is lime, matches cyan, the form preview white. */
-export const COLORS = { mine: "#D2FF00", match: "#00F0FF", preview: "#FFFFFF" };
+export const COLORS = { mine: "#D2FF00", match: "#00F0FF", preview: "#FFFFFF", hover: "#FFB020" };
 
 /** Draw at most this many match routes; more would just be a tangle of lines. */
 export const MAX_DRAWN_ROUTES = 8;
 
 /** Identifies what a map is currently showing, so a refresh with no change skips redrawing. */
 export function routesSignature(mine: Attendee | null, drawn: Attendee[]): string {
-  return mine ? `${mine.id}:${mine.route_polyline?.length ?? 0}|${drawn.map((m) => m.id).join(",")}` : "";
+  return `${mine ? `${mine.id}:${mine.route_polyline?.length ?? 0}` : "-"}|${drawn.map((m) => `${m.id}:${m.route_polyline?.length ?? 0}`).join(",")}`;
 }
 
 /** The key that decides whether a person's marker has to be recreated. */

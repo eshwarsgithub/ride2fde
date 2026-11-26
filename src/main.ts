@@ -1,10 +1,11 @@
 import type { MapController } from "./map";
 import type { MapView, MapViewName } from "./map-view";
-import { fetchAttendees } from "./api";
+import { fetchAttendees, upgradeRoute } from "./api";
+import { roadRoute } from "./route";
 import { rememberReachToggle, rememberZoneToggle, renderPanel, type PanelOptions } from "./panel";
 import { setupAttendeeForm, MY_ID_KEY } from "./form";
 import { findMatches, type MatchMode } from "./match";
-import { decodePolyline } from "../shared/geo";
+import { decodePolyline, isStraightLine } from "../shared/geo";
 import type { Attendee } from "../shared/types";
 
 const POLL_MS = 15_000;
@@ -66,9 +67,35 @@ async function refresh(focusMine = false) {
   try {
     latest = await fetchAttendees();
     draw(focusMine);
+    void upgradeStraightRoutes();
   } catch (err) {
     console.error("Failed to refresh attendees", err);
   }
+}
+
+/** Attendees whose straight-line route we've already tried to upgrade this visit, so a failure isn't retried every poll. */
+const upgradeTried = new Set<number>();
+let upgrading = false;
+
+/** Straight-line routes were saved while the routing service was down. Fetch the road route for them and save it. */
+async function upgradeStraightRoutes(): Promise<void> {
+  if (upgrading) return;
+  const todo = latest.filter((a) => isStraightLine(a.route_polyline) && !upgradeTried.has(a.id)).slice(0, 3);
+  if (todo.length === 0) return;
+  upgrading = true;
+  let changed = false;
+  try {
+    for (const a of todo) {
+      upgradeTried.add(a.id);
+      const route = await roadRoute({ lat: a.lat, lng: a.lng });
+      if (route && (await upgradeRoute(a.id, route))) changed = true;
+    }
+  } catch (err) {
+    console.warn("Couldn't upgrade a straight-line route", err);
+  } finally {
+    upgrading = false;
+  }
+  if (changed) void refresh();
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
