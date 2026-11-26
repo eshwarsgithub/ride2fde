@@ -979,17 +979,31 @@ dialog::backdrop {
   border: 2px solid #6b7280;
 }
 
+/* the pin wrapper ignores the mouse so it never blocks the map; the square itself is hoverable (and tappable on phones) */
+.pin.other .pin-dot {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.pin.other:hover,
+.pin.other:focus-within {
+  z-index: 5; /* the hovered name sits above neighbouring pins */
+}
+
+.pin.other:hover .pin-label {
+  display: block;
+}
+
 .pin.other .pin-label {
+  /* shown only while hovering the square, centred above it */
   display: none;
-  left: 14px;
+  top: -12px;
+  left: 0;
+  transform: translate(-50%, -100%);
   padding: 2px 6px;
   color: #c9cdd6;
   font-size: 11px;
   background: rgba(8, 9, 14, 0.85);
-}
-
-.show-labels .pin.other .pin-label {
-  display: block;
 }
 
 /* on your way: cyan outline + a name tag */
@@ -1274,6 +1288,22 @@ dialog::backdrop {
 .legend-vehicles .vehicle-icon {
   margin-right: 2px;
   color: var(--lime);
+}
+
+.legend-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hint-i {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  font: italic 700 11px/1 var(--font-mono);
 }
 
 .legend-vehicles {

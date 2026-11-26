@@ -1,5 +1,5 @@
-import { nearestZone } from "../../shared/zones";
-import { ROUTE_TOLERANCE_KM, decodePolyline, encodePolyline, simplifyPath, straightLineRoute } from "../../shared/geo";
+import { nearestZone, VENUE, haversineKm } from "../../shared/zones";
+import { ROUTE_TOLERANCE_KM, decodePolyline, encodePolyline, isStraightLine, simplifyPath, straightLineRoute } from "../../shared/geo";
 import { normalizeContacts, type Contact } from "../../shared/contacts";
 import { json, roundToGrid } from "../../shared/server";
 import { MAX_NAME_LENGTH, MIN_NAME_LENGTH, VEHICLES, type Attendee, type AttendeeInput, type Role, type Vehicle } from "../../shared/types";
@@ -91,4 +91,38 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     .first<Row>();
 
   return inserted ? json({ attendee: toAttendee(inserted) }, 201) : json({ error: "Could not save" }, 500);
+};
+
+/**
+ * Upgrades a straight-line route (saved when the routing service was down) to a real road route.
+ * Only straight-line routes can be replaced, and the new route must end at the venue and starts from the stored
+ * start, so this can't be used to rewrite anyone's real route.
+ */
+export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
+  let body: { id?: unknown; route_polyline?: unknown; distance_km?: unknown; eta_min?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return badRequest("Invalid JSON body");
+  }
+  const id = Number(body.id);
+  if (!Number.isInteger(id) || id <= 0) return badRequest("id must be a valid attendee id");
+
+  const row = await env.DB.prepare("SELECT lat, lng, route_polyline FROM attendees WHERE id = ?").bind(id).first<{ lat: number; lng: number; route_polyline: string }>();
+  if (!row) return json({ error: "Not found" }, 404);
+  if (!isStraightLine(row.route_polyline)) return json({ error: "This route is already a road route" }, 409);
+
+  const sent = typeof body.route_polyline === "string" && body.route_polyline.length <= MAX_POLYLINE_LEN ? body.route_polyline : "";
+  const decoded = sent ? decodePolyline(sent) : [];
+  const sane = decoded.length >= 3 && decoded.every((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+  if (!sane) return badRequest("route_polyline must be a road route");
+  if (haversineKm(decoded[decoded.length - 1], VENUE) > 1) return badRequest("route must end at the venue");
+
+  decoded[0] = { lat: row.lat, lng: row.lng };
+  const route_polyline = encodePolyline(simplifyPath(decoded, ROUTE_TOLERANCE_KM));
+  const distance_km = Number.isFinite(Number(body.distance_km)) ? Number(body.distance_km) : null;
+  const eta_min = Number.isFinite(Number(body.eta_min)) ? Number(body.eta_min) : null;
+
+  await env.DB.prepare("UPDATE attendees SET route_polyline = ?, distance_km = ?, eta_min = ? WHERE id = ?").bind(route_polyline, distance_km, eta_min, id).run();
+  return json({ ok: true });
 };

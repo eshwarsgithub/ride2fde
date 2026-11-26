@@ -192,11 +192,10 @@ export async function createGoogleMap(container: HTMLElement, onFail: () => void
       signature = next;
       for (const l of routeLines) l.setMap(null);
       routeLines = [];
-      if (!mine) return;
       for (const m of drawn) {
         if (m.route_polyline) routeLines.push(...makeLine(decodePolyline(m.route_polyline), COLORS.match, 4, 0.85));
       }
-      if (mine.route_polyline) routeLines.push(...makeLine(decodePolyline(mine.route_polyline), COLORS.mine, 5));
+      if (mine?.route_polyline) routeLines.push(...makeLine(decodePolyline(mine.route_polyline), COLORS.mine, 5));
     },
 
     showPreview(polyline: string | null) {
