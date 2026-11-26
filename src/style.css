@@ -254,11 +254,6 @@ select {
   position: relative;
 }
 
-gmp-map-3d {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
 
 /* section labels: "◆ LIKE THIS:" */
 .panel h2 {
@@ -757,50 +752,73 @@ dialog::backdrop {
   gap: 10px;
 }
 
-/* Google Places dropdown, restyled to match */
-.pac-container {
-  margin-top: 4px;
+/* Address suggestions under the "Starting from" box */
+.address-field {
+  position: relative;
+}
+
+.suggestions {
+  position: absolute;
+  z-index: 10;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
   background: var(--panel);
   border: 1px solid var(--line-20);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
   font-family: var(--font-sans);
 }
 
-.pac-container::after {
-  display: none; /* "powered by Google" strip: the Google logo is white-on-white here */
+.suggestions[hidden] {
+  display: none;
 }
 
-.pac-item {
-  padding: 8px 12px;
-  color: var(--muted);
+.suggestions li {
+  padding: 10px 12px;
+  color: var(--text);
+  font-size: 14px;
   border-top: 1px solid var(--line-10);
+  cursor: pointer;
 }
 
-.pac-item:hover,
-.pac-item-selected {
+.suggestions li:first-child {
+  border-top: none;
+}
+
+.suggestions li[aria-selected="true"],
+.suggestions li[role="option"]:hover {
   background: rgba(210, 255, 0, 0.1);
 }
 
-.pac-item-query {
-  color: var(--text);
+.suggestions .suggestion-note {
+  color: var(--muted);
+  cursor: default;
 }
 
-.pac-icon {
+/* MapLibre's attribution ("© OpenStreetMap contributors", required by the licence), readable on the dark map */
+#map2d.dark .maplibregl-ctrl.maplibregl-ctrl-attrib {
+  background: rgba(20, 23, 30, 0.9);
+  color: var(--muted);
+}
+
+#map2d.dark .maplibregl-ctrl-attrib a {
+  color: #c9cdd6;
+}
+
+#map2d.dark .maplibregl-ctrl-attrib-button {
   filter: invert(1);
 }
 
 /* ───────────── Map style switch + the dark map (from the ride2fde UI Redesign canvas) ───────────── */
 
-/* `display:block` on the 3D element would otherwise beat the `hidden` attribute */
-gmp-map-3d[hidden],
-.map-2d[hidden] {
-  display: none;
-}
-
-.map-2d {
+/* an id selector, so it wins over MapLibre's own `.maplibregl-map { position: relative }` */
+#map2d {
   position: absolute;
   inset: 0;
-  background: #e5e3df; /* Google's land colour while tiles load */
+  background: #f0ede6; /* land colour while tiles load */
 }
 
 .map-2d.dark {
@@ -973,6 +991,10 @@ gmp-map-3d[hidden],
 
 /* ── legend (bottom left) + zoom buttons (bottom right) ── */
 .map-legend {
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  bottom: 0;
   display: flex;
   flex-wrap: wrap;
   gap: 18px;
@@ -1015,6 +1037,10 @@ gmp-map-3d[hidden],
 }
 
 .map-zoom {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  bottom: 0;
   display: flex;
   flex-direction: column;
   margin: 0 24px 24px 0;

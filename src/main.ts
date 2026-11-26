@@ -1,6 +1,5 @@
-import { createMap3D } from "./map3d";
-import { createMap2D, type Map2DView } from "./map2d";
-import type { MapView, MapViewName } from "./map-view";
+import { createMap, type MapController } from "./map";
+import type { MapViewName } from "./map-view";
 import { fetchAttendees } from "./api";
 import { rememberReachToggle, rememberZoneToggle, renderPanel, type PanelOptions } from "./panel";
 import { setupAttendeeForm, MY_ID_KEY } from "./form";
@@ -12,11 +11,9 @@ const POLL_MS = 15_000;
 const MODE_KEY = "ride2fde:matchMode";
 const VIEW_KEY = "ride2fde:mapView";
 
-/** The map the viewer is looking at right now. Google's standard flat map is the default. */
-let active: MapView;
+/** One map serves all three looks; the standard one is the default. */
+let active: MapController;
 let activeName: MapViewName = "map";
-let map2d: Map2DView | undefined; // one 2D map serves both the "map" and "dark" looks
-let map3d: MapView | undefined;
 
 const view: PanelOptions = { mode: readMode(), showAll: false };
 let latest: Attendee[] = [];
@@ -63,28 +60,13 @@ async function refresh(focusMine = false) {
   }
 }
 
-/** Create a map the first time it's needed. The 3D library is only loaded if someone picks 3D. */
-async function getView(name: MapViewName): Promise<MapView> {
-  if (name === "3d") return (map3d ??= await createMap3D());
-  map2d ??= await createMap2D(document.getElementById("map2d")!);
-  map2d.setTheme(name === "dark" ? "dark" : "standard");
-  return map2d;
-}
-
-/** Show one map and hide the others, then draw the current data onto it. */
+/** Change the look, then draw the current data onto it. */
 async function switchView(name: MapViewName, focusMine = true): Promise<void> {
-  const el3d = document.getElementById("map3d")!;
-  const el2d = document.getElementById("map2d")!;
-  // Show the target first: Google's 2D map needs a visible, sized container when it's created.
-  el3d.hidden = name !== "3d";
-  el2d.hidden = name === "3d";
-
   try {
-    active = await getView(name);
+    await active.setView(name);
   } catch (err) {
-    console.error(`Couldn't load the ${name} map`, err);
-    if (name !== "map") return switchView("map", focusMine); // fall back to the default
-    throw err;
+    console.error(`Couldn't switch to the ${name} map`, err);
+    return;
   }
   activeName = name;
 
@@ -101,7 +83,7 @@ async function switchView(name: MapViewName, focusMine = true): Promise<void> {
 
 async function main() {
   const panel = document.getElementById("zone-panel")!;
-  active = await getView("map"); // the default map is always ready first
+  active = await createMap(document.getElementById("map2d")!); // the standard look is always ready first
 
   setupAttendeeForm(
     () => {

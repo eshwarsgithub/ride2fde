@@ -6,7 +6,7 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
     "moduleResolution": "Bundler",
-    "types": ["google.maps"],
+    "types": [],
     "resolveJsonModule": true,
     "isolatedModules": true,
     "moduleDetection": "force",
