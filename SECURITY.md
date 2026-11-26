@@ -32,6 +32,8 @@ These are documented limitations, so reports about them alone aren't needed:
   See [Contacts and privacy](README.md#contacts-and-privacy).
 - **Search text and route points go to public OpenStreetMap services** (Photon for search, OSRM for routes)
   straight from the browser. No keys are involved.
+- **If the optional Google Maps view is turned on, its key is visible in the page source.** That is how browser Maps
+  keys work. Protect it with HTTP-referrer and API restrictions in Google Cloud (see the README).
 
 ## Please don't
 

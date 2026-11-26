@@ -34,6 +34,8 @@ export function setupAttendeeForm(
   const submitBtn = document.getElementById("submit-btn") as HTMLButtonElement;
   const status = document.getElementById("form-status") as HTMLParagraphElement;
   const rowsEl = document.getElementById("contact-rows") as HTMLDivElement;
+  // shown right under the contact boxes: on a phone the status line at the bottom of the form is off-screen
+  const contactError = document.getElementById("contact-error") as HTMLParagraphElement;
   const addContactBtn = document.getElementById("add-contact-btn") as HTMLButtonElement;
   const vehicleEl = document.getElementById("vehicle-choice") as HTMLFieldSetElement;
 
@@ -58,6 +60,8 @@ export function setupAttendeeForm(
       for (const option of select.options) option.disabled = option.value !== type && used.has(option.value as ContactType);
       input.placeholder = CONTACT_PLACEHOLDER[type];
       input.inputMode = type === "linkedin" ? "url" : type === "email" ? "email" : "tel";
+      // a phone number is 10 digits; room for a +91 prefix and spaces, but not a paragraph
+      input.maxLength = type === "whatsapp" || type === "phone" ? 16 : 120;
       input.setAttribute("aria-label", `${CONTACT_LABEL[type]} details`);
       (row.querySelector(".contact-remove") as HTMLElement).hidden = rows.length === 1;
     }
@@ -121,12 +125,16 @@ export function setupAttendeeForm(
   });
 
   // A contact error clears as soon as the person starts fixing it.
-  rowsEl.addEventListener("input", () => {
-    if (status.dataset.error === "contact") {
-      status.dataset.error = "";
-      status.textContent = "";
-    }
-  });
+  const clearContactError = () => {
+    contactError.hidden = true;
+    contactError.textContent = "";
+    rowsEl.querySelectorAll("[aria-invalid]").forEach((el) => {
+      el.removeAttribute("aria-invalid");
+      el.removeAttribute("aria-describedby");
+    });
+  };
+  rowsEl.addEventListener("input", clearContactError);
+  rowsEl.addEventListener("change", clearContactError); // switching WhatsApp ↔ LinkedIn etc.
 
   // ───────────── location + route ─────────────
 
@@ -166,6 +174,7 @@ export function setupAttendeeForm(
     clearPending();
     form.reset();
     resetRows();
+    clearContactError();
     syncVehicle();
     status.textContent = "";
     dialog.close();
@@ -233,10 +242,14 @@ export function setupAttendeeForm(
       rows.map((r) => ({ type: selectOf(r).value, value: inputOf(r).value }))
     );
     if (error) {
-      status.textContent = error;
-      status.dataset.error = "contact";
       const bad = rows.find((r) => inputOf(r).value.trim() !== "" && !normalizeContacts([{ type: selectOf(r).value, value: inputOf(r).value }]).contacts.length);
-      (bad ? inputOf(bad) : inputOf(rows[0])).focus();
+      const field = bad ? inputOf(bad) : inputOf(rows[0]);
+      contactError.textContent = error;
+      contactError.hidden = false;
+      field.setAttribute("aria-invalid", "true");
+      field.setAttribute("aria-describedby", "contact-error");
+      field.focus();
+      contactError.scrollIntoView({ block: "nearest" });
       return;
     }
 
@@ -267,6 +280,7 @@ export function setupAttendeeForm(
       clearPending();
       form.reset();
       resetRows();
+      clearContactError();
       syncVehicle();
       dialog.close();
       onCreated(attendee);

@@ -40,6 +40,7 @@ version:
 git clone https://github.com/<your-username>/ride2fde.git   # your fork
 cd ride2fde
 npm install
+npm run map:assets              # downloads the map data for the region (~38 MB), once
 npm run db:migrate:local        # creates the local database, no Cloudflare account needed
 npm run build                   # once
 npm run pages:dev               # terminal 1: the API on :8788

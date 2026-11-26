@@ -3,18 +3,59 @@ import type { Feature, LineString } from "geojson";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { VENUE } from "../shared/zones";
 import { decodePolyline, type LatLng } from "../shared/geo";
-import { COLORS, MAX_DRAWN_ROUTES, markerKey, routesSignature, type MapView, type MapViewName, type Relations } from "./map-view";
+import { COLORS, MAX_DRAWN_ROUTES, markerKey, routesSignature, type MapView, type OsmViewName, type Relations } from "./map-view";
 import type { Attendee, Vehicle } from "../shared/types";
 import { vehicleIcon } from "./icons";
+import libertyStyle from "./map-style.json";
+import REGION from "../shared/map-region.json";
 
 /**
- * The map: MapLibre GL drawing OpenStreetMap data from OpenFreeMap's free vector tiles.
- * No API key, no account, no usage caps. One map serves all three views:
- *   "map"  = OpenFreeMap's Liberty style, as it comes
+ * The map: MapLibre GL drawing OpenStreetMap data (OpenFreeMap's tiles and Liberty style).
+ * Everything it loads (tiles, label fonts, icons) is served from our own site, from public/map/<version>/,
+ * downloaded by `npm run map:assets`. That keeps every map request on the page's own connection and on the
+ * nearest Cloudflare edge, instead of a chain of round trips to a server in Europe.
+ *
+ * One map serves all three views:
+ *   "map"  = the Liberty style, as it comes
  *   "dark" = the same style recoloured to the ride2fde UI Redesign palette
  *   "3d"   = the standard style tilted, with buildings raised to their real heights
  */
-const STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+const ASSETS = `${location.origin}/map/${REGION.version}`;
+/** Italic (lakes, villages) is drawn in the regular font: one less ~75 KB font file on first load. */
+const FONT_NAMES: Record<string, string> = { "Noto Sans Regular": "noto-regular", "Noto Sans Bold": "noto-bold", "Noto Sans Italic": "noto-regular" };
+/** English names only: the label fonts we ship cover Latin script, and the design reads in English. */
+const LATIN_NAME = ["coalesce", ["get", "name_en"], ["get", "name:latin"], ["get", "name"]];
+
+/** The Liberty style pointed at our own copies of the tiles, fonts and sprites, limited to the region we ship. */
+function localStyle(): StyleSpecification {
+  const base = libertyStyle as unknown as StyleSpecification;
+  const layers = base.layers
+    .filter((l) => l.type !== "raster") // the natural-earth relief is only for zoom levels we never show
+    .map((l) => {
+      if (l.type !== "symbol" || !l.layout) return l;
+      const layout = { ...l.layout } as Record<string, unknown>;
+      const fonts = layout["text-font"] as string[] | undefined;
+      if (fonts) layout["text-font"] = fonts.map((f) => FONT_NAMES[f] ?? "noto-regular");
+      if (JSON.stringify(layout["text-field"] ?? "").includes("name:nonlatin")) layout["text-field"] = LATIN_NAME;
+      return { ...l, layout } as LayerSpecification;
+    });
+  return {
+    ...base,
+    sources: {
+      openmaptiles: {
+        type: "vector",
+        tiles: [`${ASSETS}/tiles/{z}/{x}/{y}.pbf`],
+        minzoom: REGION.minzoom,
+        maxzoom: REGION.maxzoom,
+        bounds: REGION.bounds as [number, number, number, number],
+        attribution: '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>',
+      },
+    },
+    glyphs: `${ASSETS}/fonts/{fontstack}/{range}.pbf`,
+    sprite: `${ASSETS}/sprites/ofm`,
+    layers,
+  };
+}
 
 /** The dark palette from the "ride2fde UI Redesign" canvas. */
 const DARK = {
@@ -84,23 +125,25 @@ function standard(style: StyleSpecification, threeD: boolean): StyleSpecificatio
 }
 
 export interface MapController extends MapView {
-  setView(name: MapViewName): Promise<void>;
+  setView(name: OsmViewName): Promise<void>;
 }
 
 export async function createMap(container: HTMLElement): Promise<MapController> {
-  // Fetched once; each look is a recoloured or trimmed copy of it.
-  const res = await fetch(STYLE_URL, { signal: AbortSignal.timeout(15_000) });
-  if (!res.ok) throw new Error(`Map style answered ${res.status}`);
-  const baseStyle = (await res.json()) as StyleSpecification;
-  const styleFor = (name: MapViewName) => (name === "dark" ? darken(baseStyle) : standard(baseStyle, name === "3d"));
+  // Built once; each look is a recoloured or trimmed copy of it.
+  const baseStyle = localStyle();
+  const styleFor = (name: OsmViewName) => (name === "dark" ? darken(baseStyle) : standard(baseStyle, name === "3d"));
 
   const map = new maplibregl.Map({
     container,
     style: styleFor("map"),
     center: VENUE_CENTER,
     zoom: 11,
-    minZoom: 8,
+    minZoom: REGION.minzoom,
     maxZoom: 18,
+    // We ship map data for Greater Hyderabad only, so the view stays inside it.
+    maxBounds: REGION.bounds as [number, number, number, number],
+    // new tiles and labels fade in quickly rather than over the default 300 ms
+    fadeDuration: 150,
     // Phones: one finger scrolls the page and two fingers move the map, so the map never traps scrolling.
     cooperativeGestures: window.matchMedia("(pointer: coarse)").matches,
     attributionControl: false, // added top-right below, clear of our legend and zoom buttons
@@ -150,7 +193,7 @@ export async function createMap(container: HTMLElement): Promise<MapController> 
   let routeFeatures: RouteFeature[] = [];
   let previewFeatures: RouteFeature[] = [];
   let signature = "";
-  let view: MapViewName = "map";
+  let view: OsmViewName = "map";
 
   const feature = (path: LatLng[], color: string, width: number, order: number, opts: { glow?: boolean; opacity?: number } = {}): RouteFeature => ({
     type: "Feature",
@@ -253,7 +296,7 @@ export async function createMap(container: HTMLElement): Promise<MapController> 
 
     focusPath,
 
-    async setView(next: MapViewName) {
+    async setView(next: OsmViewName) {
       if (next === view) return;
       view = next;
       const threeD = next === "3d";

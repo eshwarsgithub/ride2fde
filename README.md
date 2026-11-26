@@ -27,6 +27,8 @@ say hi and arrange the trip.
 - [Data model](#data-model)
 - [Run it yourself](#run-it-yourself)
 - [Deploy](#deploy)
+- [Performance](#performance)
+- [Optional: Google Maps view](#optional-google-maps-view)
 - [Configuration reference](#configuration-reference)
 - [Troubleshooting](#troubleshooting)
 - [Known limitations and ideas](#known-limitations-and-ideas)
@@ -77,6 +79,9 @@ along the same road. Both add their routes. Asha sees "Ravi: pick up about 25 km
 - **Three map views** behind a switch: a standard OpenStreetMap map (default), a dark map styled to match the summit
   site, and a tilted 3D view with buildings. The choice is remembered per browser.
 - **No map API keys and no billing.** Maps, address search and routing all run on free OpenStreetMap services.
+- **Optional Google Maps view**: with a Google key, a fourth **Google** button shows Google's map, and the app falls
+  back to the free map by itself if Google's daily limit is reached (see
+  [Optional: Google Maps view](#optional-google-maps-view)).
 - **Pickup order** for givers: riders are listed in the order along the giver's route.
 - **Zones**: everyone else is grouped by commute area (Gachibowli, Kukatpally, and so on), with your own area first.
 - **Rough locations only**: the stored start is rounded to about 300 m and shown as an area name.
@@ -148,10 +153,11 @@ shown, never taken as typed.
 | Maps | **MapLibre GL JS** with **OpenFreeMap** vector tiles (OpenStreetMap data). No key. |
 | Address search | **Photon** (komoot), an OpenStreetMap geocoder: search-as-you-type and "use my location". No key. |
 | Routing | **OSRM** public server, the router behind openstreetmap.org's directions. No key. |
+| Optional map | **Google Maps JavaScript API**, only if built with a key ([details](#optional-google-maps-view)) |
 | Backend | **Cloudflare Pages Functions** (one function, `functions/api/attendees.ts`) |
 | Database | **Cloudflare D1** (SQLite), schema managed by migrations |
 | Hosting | **Cloudflare Pages** |
-| Fonts | Plus Jakarta Sans and JetBrains Mono (Google Fonts) |
+| Fonts | Plus Jakarta Sans and JetBrains Mono, self-hosted via Fontsource |
 
 ```text
  Browser (Vite + TypeScript)                      Cloudflare Pages
@@ -164,11 +170,13 @@ shown, never taken as typed.
  │ src/panel.ts  the side panel     │                         │
  │ src/map.ts    MapLibre map       │                         ▼
  │ src/search.ts Photon search      │            ┌──────────────────────────┐
+ │ src/map-google.ts  optional view │            │                          │
  └───────────┬──────────────────────┘            │ D1 (SQLite)              │
              │                                   │   table: attendees       │
              ▼                                   └──────────────────────────┘
    OpenStreetMap services, no keys
-   (OpenFreeMap tiles, Photon search, OSRM routes)
+   (map files from this site, Photon search, OSRM routes)
+   + optionally Google Maps JavaScript API, only for the Google view
 
  shared/   code used by both sides: zones, polylines, contact rules, types
 ```
@@ -202,10 +210,16 @@ A few design notes:
 │   ├── 0002_roles_routes.sql  role + route, drops mode/pooling
 │   ├── 0003_contacts.sql    contact options replace the single phone number
 │   └── 0004_vehicle.sql     car / bike for ride givers
+├── scripts/
+│   └── fetch-map-assets.mjs  Downloads the region's map tiles, fonts and icons into public/map/
+├── public/
+│   ├── _headers             Cloudflare Pages caching and content-type rules
+│   └── favicon.svg
 ├── shared/                  Used by both the browser and the function
 │   ├── contacts.ts          Contact types, validation, link building
 │   ├── geo.ts               Polyline encode/decode, distance to a route, simplification, match radius
 │   ├── server.ts            Small helpers for the function (location rounding, JSON replies)
+│   ├── map-region.json      The area the map covers and the map-data version
 │   ├── types.ts             Attendee, roles, vehicles
 │   └── zones.ts             The venue, the seven zones, haversine distance
 ├── src/
@@ -217,6 +231,8 @@ A few design notes:
 │   ├── panel.ts             The side panel: route line, matches, "Say hi", zone lists
 │   ├── map-view.ts          The interface every map implements, plus shared colours
 │   ├── map.ts               The MapLibre map: standard, dark and 3D looks, pins, route lines
+│   ├── map-style.json       OpenFreeMap's Liberty style, adapted at runtime to use our own map files
+│   ├── map-google.ts        The optional Google Maps view, with fallback to the free map
 │   ├── icons.ts             Car and bike icons
 │   ├── api.ts               fetch wrappers for the API
 │   └── style.css            All styling (design tokens at the top)
@@ -321,7 +337,11 @@ No map API key is needed: the map, search and routing use free OpenStreetMap ser
 git clone https://github.com/eshwarsgithub/ride2fde.git
 cd ride2fde
 npm install
+npm run map:assets   # downloads the map data for Greater Hyderabad (~38 MB) into public/map/, once
 ```
+
+The map's tiles, label fonts and icons are served from the site itself rather than a third-party server (see
+[Performance](#performance)), so they have to be downloaded once. The folder is git-ignored.
 
 ### 2. Create the database
 
@@ -341,7 +361,7 @@ Then apply the migrations to the local database:
 npm run db:migrate:local
 ```
 
-### 4. Start the two dev servers
+### 3. Start the two dev servers
 
 ```bash
 npm run build        # once, so the Functions server has files to serve
@@ -359,10 +379,11 @@ Open <http://localhost:5173>. Vite proxies `/api` to the Functions server on por
 | `npm run pages:dev` | Cloudflare Pages dev server (API + local D1) on :8788 |
 | `npm run typecheck` | Type-check the app and the server function |
 | `npm run build` | Type-check the app and build to `dist/` |
+| `npm run map:assets` | Download the map tiles, fonts and icons for the region into `public/map/` (skips files it has) |
 | `npm run preview` | Preview the production build |
 | `npm run db:migrate:local` | Apply migrations to the local database |
 | `npm run db:migrate:remote` | Apply migrations to the live database |
-| `npm run deploy` | Build and deploy to Cloudflare Pages |
+| `npm run deploy` | Fetch any missing map data, build, and deploy to Cloudflare Pages |
 
 ## Deploy
 
@@ -379,6 +400,83 @@ Notes:
 - Use a different project name if `ride2fde` is taken on your Cloudflare account, and update `name` in
   `wrangler.toml`.
 
+## Performance
+
+The page is built to load fast on a phone in India:
+
+- **Map data comes from our own site.** The vector tiles for Greater Hyderabad, the label fonts and the icon sprites
+  are downloaded once (`npm run map:assets`) and deployed with the site, so they come from the nearest Cloudflare edge
+  over the page's own connection. OpenFreeMap's public server answered from Europe, and the map needed a chain of
+  four round trips to it before drawing anything. The style is bundled into the app instead of fetched.
+- **The people list doesn't wait for the map.** MapLibre (most of the JavaScript) loads in parallel, so the list shows
+  first and the map catches up.
+- **Fonts are self-hosted** (Fontsource), with no Google Fonts round trip.
+- **Hints in the HTML**: the map code and main fonts are preloaded, and the search and routing servers preconnected.
+  Cloudflare Pages turns the preloads into Early Hints.
+- **Caching** ([`public/_headers`](public/_headers)): hashed build files and the versioned map data are cached by the
+  browser for a year, and tiles are sent as `application/x-protobuf` so Cloudflare compresses them.
+
+Measured locally on a simulated 4G connection: the people list appears in about 0.4 s (was 2.2 s) and the map in
+about 0.7 s (was 2.3 s).
+
+The map covers the box in [`shared/map-region.json`](shared/map-region.json), and the view can't be moved outside it.
+To cover a different area or refresh the data, change that file (the `version` is OpenFreeMap's planet build) and run
+`npm run map:assets` again.
+
+## Optional: Google Maps view
+
+The app's main map is the free OpenStreetMap one above, and it needs no key. You can **also** offer Google's map: build
+the site with a Google Maps key and a **Google** button appears next to Map / Dark / 3D. This is how the app worked
+before it moved to OpenStreetMap, kept as an option for when a Google key with quota is available.
+
+**What it does and doesn't change**
+
+- Only the map picture changes. Pins, route lines, the legend and the zoom buttons look the same on both.
+- Address search (Photon), routing (OSRM) and the data stay on the free OpenStreetMap services, so Google quota is
+  spent only on map loads, and only by people who press the button.
+- Google's script is downloaded only when someone picks the Google view. Without a key, nothing about Google is
+  loaded and the button stays hidden.
+- **If Google refuses** (daily limit reached, billing off, wrong key), the app notices Google's "Oops! Something went
+  wrong" error, switches back to the free map, shows a short note, and disables the button for that visit. People
+  never get stuck on Google's error.
+
+**Previous Google architecture (for reference)**
+
+Before the switch, Google Maps Platform did everything:
+
+| Feature | Google API it used | Now (default) |
+|---|---|---|
+| Map (standard, dark) | Maps JavaScript API | MapLibre + OpenFreeMap tiles served from this site |
+| 3D map | Maps JavaScript API, photorealistic 3D (`gmp-map-3d`) | MapLibre tilted, with raised buildings |
+| Address search | Places API (Autocomplete) | Photon |
+| "Use my location" | Geocoding API | Photon reverse lookup |
+| Driving routes | Routes API | OSRM |
+
+```text
+ Browser ──▶ Google Maps Platform (one API key, billing account required)
+             Maps JavaScript API · Places · Geocoding · Routes
+```
+
+It was dropped as the default because Google requires a billing account even for its free monthly allowance, and the
+no-billing demo key ran out of its daily quota during use. The optional view uses only the **Maps JavaScript API**.
+
+**Turning it on**
+
+1. In [Google Cloud Console](https://console.cloud.google.com/google/maps-apis), use a project with **billing enabled**
+   (Google's monthly free allowance per API still applies), or the Maps demo key (small daily limit, not for
+   production).
+2. Enable the **Maps JavaScript API** and create an **API key**.
+3. Restrict the key: *Application restrictions* → **HTTP referrers**, for example `https://your-site.example/*` and
+   `http://localhost:5173/*`; *API restrictions* → **Maps JavaScript API** only. An unrestricted key can be used on
+   anyone's site at your cost.
+4. Put it in `.env` (copy [`.env.example`](.env.example)):
+   ```bash
+   VITE_GOOGLE_MAPS_API_KEY=your-key
+   ```
+5. Build and deploy as usual (`npm run deploy`). The key is read **at build time** and ends up in the page, which is
+   normal for browser Maps keys; that's why the referrer restriction matters. To turn the Google view off, empty the
+   value and deploy again.
+
 ## Configuration reference
 
 | Setting | Where | Purpose |
@@ -390,6 +488,8 @@ Notes:
 | `GRID_DEG` | `shared/server.ts` | Location rounding (0.003°, about 300 m) |
 | `POLL_MS` | `src/main.ts` | How often the page refreshes (15 s) |
 | `ZONES`, `VENUE` | `shared/zones.ts` | The commute areas and the destination |
+| Map area and data version | `shared/map-region.json` | The region the map covers and ships tiles for |
+| `VITE_GOOGLE_MAPS_API_KEY` | `.env` (build time), optional | Turns on the Google map view. Empty = hidden |
 
 To reuse this for another event, change `VENUE` and `ZONES` in `shared/zones.ts` and the copy in `index.html`.
 
@@ -398,11 +498,13 @@ To reuse this for another event, change `VENUE` and `ZONES` in `shared/zones.ts`
 | Problem | Likely cause and fix |
 |---|---|
 | `no such table: attendees` when running locally | Migrations not applied, or `pages:dev` uses a different database id. Run `npm run db:migrate:local` and make sure the id in `package.json` matches `wrangler.toml`. |
-| The map is blank | OpenFreeMap's tile server couldn't be reached. Check the connection; the rest of the page still works. |
+| The map is blank or labels are missing | The map data isn't downloaded. Run `npm run map:assets`, then build again. |
 | The page loads but the API returns 500 after deploying | A migration is missing on the live database. Run `npm run db:migrate:remote`. |
 | "Use my current location" fills in coordinates, not a place name | Photon didn't answer. The app still works: the server falls back to the zone's name. |
 | The route is a straight line | The public OSRM server didn't answer (it is fair-use, with no uptime guarantee). Try again later. |
 | 3D map is slow | Switch to the standard or dark map. The 3D view draws the most. |
+| The Google button is missing | The site was built without `VITE_GOOGLE_MAPS_API_KEY`. Add it to `.env` and build again. |
+| The Google button is greyed out | Google refused this visit (daily limit, billing or key restrictions). The free map is shown instead; it resets on reload. |
 | Address search finds nothing | Photon searches OpenStreetMap within Greater Hyderabad. Try a nearby area or landmark name. |
 
 ## Known limitations and ideas

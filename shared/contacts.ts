@@ -27,12 +27,19 @@ export const CONTACT_PLACEHOLDER: Record<ContactType, string> = {
 const LINKEDIN_HANDLE = /^[A-Za-z0-9\-_%.]{3,100}$/;
 const LINKEDIN_URL = /^(?:https?:\/\/)?(?:[a-z]{2,3}\.)?linkedin\.com\/in\/([^/?#\s]+)/i;
 
-/** Digits only, with the country code. A bare 10-digit number is taken to be Indian. */
-function normalizePhone(raw: string): string | null {
+/**
+ * An Indian number: exactly 10 digits once spaces, dashes and a leading +91, 91 or 0 are taken off.
+ * Stored with the country code ("91" + 10 digits) so wa.me and tel: links work.
+ * WhatsApp needs a mobile number, and Indian mobiles start with 6, 7, 8 or 9. Phone / SMS also accepts a landline
+ * with its area code (Hyderabad: 40 2345 6789), which never starts with 0 or 1.
+ */
+function normalizePhone(raw: string, mobileOnly: boolean): string | null {
+  if (/[^\d\s()+.-]/.test(raw)) return null; // letters or other symbols: not a phone number
   let digits = raw.replace(/\D/g, "");
-  if (digits.length === 11 && digits.startsWith("0")) digits = digits.slice(1);
-  if (digits.length === 10) digits = `91${digits}`;
-  return digits.length >= 8 && digits.length <= 15 ? digits : null;
+  if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2);
+  else if (digits.length === 11 && digits.startsWith("0")) digits = digits.slice(1);
+  const valid = mobileOnly ? /^[6-9]\d{9}$/ : /^[2-9]\d{9}$/;
+  return valid.test(digits) ? `91${digits}` : null;
 }
 
 function normalizeLinkedin(raw: string): string | null {
@@ -54,8 +61,25 @@ function normalizeEmail(raw: string): string | null {
 /** Returns the cleaned contact, or null if the value isn't usable for that type. */
 export function normalizeContact(type: unknown, raw: unknown): Contact | null {
   if (typeof raw !== "string" || !CONTACT_TYPES.includes(type as ContactType)) return null;
-  const value = type === "linkedin" ? normalizeLinkedin(raw) : type === "email" ? normalizeEmail(raw) : normalizePhone(raw);
+  const value =
+    type === "linkedin" ? normalizeLinkedin(raw) : type === "email" ? normalizeEmail(raw) : normalizePhone(raw, type === "whatsapp");
   return value ? { type: type as ContactType, value } : null;
+}
+
+/** What to tell someone whose contact didn't pass, specific enough to fix it. */
+function contactError(type: unknown): string {
+  switch (type) {
+    case "whatsapp":
+      return "Enter a 10-digit WhatsApp mobile number, like 98765 43210.";
+    case "phone":
+      return "Enter a 10-digit phone number, like 98765 43210.";
+    case "email":
+      return "Enter an email address, like name@example.com.";
+    case "linkedin":
+      return "Enter your LinkedIn profile link, like linkedin.com/in/your-name.";
+    default:
+      return "Check the contact details.";
+  }
 }
 
 /**
@@ -72,7 +96,7 @@ export function normalizeContacts(input: unknown): { contacts: Contact[]; error?
     const { type, value } = (item ?? {}) as { type?: unknown; value?: unknown };
     if (typeof value === "string" && value.trim() === "") continue;
     const clean = normalizeContact(type, value);
-    if (!clean) return { contacts: [], error: `Check the ${CONTACT_LABEL[type as ContactType] ?? "contact"} details` };
+    if (!clean) return { contacts: [], error: contactError(type) };
     if (contacts.some((c) => c.type === clean.type)) {
       return { contacts: [], error: `Use ${CONTACT_LABEL[clean.type]} only once` };
     }
