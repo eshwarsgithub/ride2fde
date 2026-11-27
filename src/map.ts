@@ -1,5 +1,6 @@
 import maplibregl, { type GeoJSONSource, type LayerSpecification, type LineLayerSpecification, type StyleSpecification } from "maplibre-gl";
-import type { Feature, LineString } from "geojson";
+import type { Feature, FeatureCollection, LineString } from "geojson";
+import METRO from "../shared/metro.json";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { VENUE } from "../shared/zones";
 import { decodePolyline, type LatLng } from "../shared/geo";
@@ -126,6 +127,17 @@ function standard(style: StyleSpecification, threeD: boolean): StyleSpecificatio
   return threeD ? style : { ...style, layers: style.layers.filter((l) => l.type !== "fill-extrusion") };
 }
 
+const METRO_KEY = "ride2fde:showMetro";
+
+/** The metro lines are shown unless the viewer turned them off. */
+function readShowMetro(): boolean {
+  try {
+    return localStorage.getItem(METRO_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
 export interface MapController extends MapView {
   setView(name: OsmViewName): Promise<void>;
 }
@@ -174,7 +186,8 @@ export async function createMap(container: HTMLElement): Promise<MapController> 
     <span><i class="swatch cyan"></i>On your way</span>
     <span><i class="swatch grey"></i>Elsewhere</span>
     <span class="legend-hint" title="${HINT}"><i class="hint-i">i</i>${HINT}</span>
-    <span class="legend-vehicles">${vehicleIcon("car", 16)}Car ${vehicleIcon("bike", 16)}Bike</span>`;
+    <span class="legend-vehicles">${vehicleIcon("car", 16)}Car ${vehicleIcon("bike", 16)}Bike</span>
+    <button type="button" class="legend-toggle" aria-pressed="true" title="Show or hide the Hyderabad Metro lines"><i class="swatch metro"></i>Metro</button>`;
 
   const zoom = document.createElement("div");
   zoom.className = "map-zoom";
@@ -211,8 +224,86 @@ export async function createMap(container: HTMLElement): Promise<MapController> 
     source?.setData({ type: "FeatureCollection", features: [...routeFeatures, ...hoverFeatures, ...previewFeatures] });
   }
 
+  // ── Hyderabad Metro: the three lines and their stations, under the people's routes ──
+  // Data from OpenStreetMap (shared/metro.json, made by `npm run metro:data`).
+  const METRO_LAYERS = ["metro-casing", "metro-line", "metro-stations", "metro-labels", "metro-miyapur"];
+  let showMetro = readShowMetro();
+
+  function addMetroLayers() {
+    if (map.getSource("metro")) return;
+    const dark = view === "dark";
+    const visibility = showMetro ? "visible" : "none";
+    const isLine = ["==", ["get", "kind"], "line"] as const;
+    const isStation = ["==", ["get", "kind"], "station"] as const;
+    const labelPaint = { "text-color": dark ? "#e6e9ef" : "#1b1f2a", "text-halo-color": dark ? "#08090e" : "#ffffff", "text-halo-width": 1.5 };
+    map.addSource("metro", { type: "geojson", data: METRO as unknown as FeatureCollection });
+    map.addLayer({
+      id: "metro-casing",
+      type: "line",
+      source: "metro",
+      filter: isLine as never,
+      layout: { visibility, "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": dark ? "#08090e" : "#ffffff", "line-opacity": 0.8, "line-width": ["interpolate", ["linear"], ["zoom"], 9, 3, 15, 9] },
+    });
+    map.addLayer({
+      id: "metro-line",
+      type: "line",
+      source: "metro",
+      filter: isLine as never,
+      layout: { visibility, "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": ["get", "color"], "line-opacity": 0.85, "line-width": ["interpolate", ["linear"], ["zoom"], 9, 1.5, 15, 5] },
+    });
+    map.addLayer({
+      id: "metro-stations",
+      type: "circle",
+      source: "metro",
+      filter: isStation as never,
+      minzoom: 11,
+      layout: { visibility },
+      paint: {
+        "circle-color": "#ffffff",
+        "circle-stroke-color": "#08090e",
+        "circle-stroke-width": ["case", ["get", "interchange"], 2.5, 1.5],
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 11, ["case", ["get", "interchange"], 4, 2.5], 15, ["case", ["get", "interchange"], 7, 5]],
+      },
+    });
+    map.addLayer({
+      id: "metro-labels",
+      type: "symbol",
+      source: "metro",
+      filter: isStation as never,
+      minzoom: 13,
+      layout: { visibility, "text-field": ["get", "name"], "text-font": ["noto-bold"], "text-size": 11, "text-anchor": "top", "text-offset": [0, 0.7], "text-optional": true },
+      paint: labelPaint,
+    });
+    // Miyapur, the end of the Red Line, is the closest station to IIT Hyderabad: named at every zoom.
+    map.addLayer({
+      id: "metro-miyapur",
+      type: "symbol",
+      source: "metro",
+      filter: ["all", isStation, ["==", ["get", "name"], "Miyapur"]] as never,
+      maxzoom: 13,
+      layout: { visibility, "text-field": "Miyapur Metro", "text-font": ["noto-bold"], "text-size": 11, "text-anchor": "top", "text-offset": [0, 0.7] },
+      paint: labelPaint,
+    });
+  }
+
+  const metroToggle = legend.querySelector<HTMLButtonElement>(".legend-toggle")!;
+  metroToggle.setAttribute("aria-pressed", String(showMetro));
+  metroToggle.addEventListener("click", () => {
+    showMetro = !showMetro;
+    metroToggle.setAttribute("aria-pressed", String(showMetro));
+    for (const id of METRO_LAYERS) if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", showMetro ? "visible" : "none");
+    try {
+      localStorage.setItem(METRO_KEY, showMetro ? "1" : "0");
+    } catch {
+      /* storage unavailable: the choice just won't persist */
+    }
+  });
+
   /** Adds the route layers to whatever style is loaded. A style change wipes them, so this runs after each one. */
   function addRouteLayers() {
+    addMetroLayers(); // first, so the metro sits under the people's routes
     if (map.getSource("routes")) return;
     const dark = view === "dark";
     map.addSource("routes", { type: "geojson", data: { type: "FeatureCollection", features: [] } });

@@ -2048,3 +2048,56 @@ dialog {
     display: none;
   }
 }
+
+/* "Remove my entry" in the edit form */
+.danger-btn {
+  color: #c0392b;
+}
+
+.code-display {
+  font-family: "JetBrains Mono Variable", ui-monospace, monospace;
+  font-size: 1.15rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: lowercase;
+}
+
+/* "Edit" beside a name in the list */
+.edit-link {
+  margin-left: auto;
+  padding: 0 0.25rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  opacity: 0.55;
+  font: inherit;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.edit-link:hover,
+.edit-link:focus-visible {
+  opacity: 1;
+}
+
+/* Metro on/off in the map legend */
+.legend-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+.legend-toggle[aria-pressed="false"] {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+.swatch.metro {
+  background: linear-gradient(90deg, #e2231a 0 33%, #0a6fc2 33% 66%, #00a651 66%);
+}

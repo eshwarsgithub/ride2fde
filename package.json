@@ -27,6 +27,7 @@
     "db:migrate:remote": "wrangler d1 migrations apply ride2fde-db --remote",
     "deploy": "npm run predeploy && npm run map:assets && vite build && wrangler pages deploy dist",
     "map:assets": "node scripts/fetch-map-assets.mjs",
+    "metro:data": "node scripts/fetch-metro.mjs",
     "predeploy": "node scripts/predeploy.mjs"
   },
   "devDependencies": {

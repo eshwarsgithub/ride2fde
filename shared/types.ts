@@ -32,6 +32,19 @@ export interface AttendeeInput {
   contacts?: Contact[];
 }
 
+/**
+ * Edit codes are short so people can remember them: three letters from the name plus four digits, like shi4829.
+ * That is easy to guess on its own, so the server locks an entry after a few wrong codes (see migration 0006).
+ */
+export const EDIT_CODE_PATTERN = /^[a-z]{3}\d{4}$/;
+
+/** What the person types or pastes -> the plain code (shi4829), or null if it can't be one. Case, spaces and dashes don't matter. */
+export function normalizeEditCode(input: unknown): string | null {
+  if (typeof input !== "string") return null;
+  const code = input.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return EDIT_CODE_PATTERN.test(code) ? code : null;
+}
+
 export interface Attendee {
   id: number;
   name: string;
@@ -45,5 +58,7 @@ export interface Attendee {
   distance_km: number | null;
   eta_min: number | null;
   contacts: Contact[];
+  /** Whether this entry has an edit code, so the list can offer "Edit". The code itself is never sent. */
+  editable: boolean;
   created_at: string;
 }
