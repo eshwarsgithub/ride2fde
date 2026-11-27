@@ -3,7 +3,7 @@ import type { MapView, MapViewName } from "./map-view";
 import { fetchAttendees, upgradeRoute } from "./api";
 import { roadRoute } from "./route";
 import { rememberReachToggle, rememberZoneToggle, renderPanel, type PanelOptions } from "./panel";
-import { setupAttendeeForm, MY_ID_KEY } from "./form";
+import { adoptEditLink, myEditAccess, setupAttendeeForm, MY_ID_KEY } from "./form";
 import { findMatches, type MatchMode } from "./match";
 import { decodePolyline, isStraightLine } from "../shared/geo";
 import type { Attendee } from "../shared/types";
@@ -54,6 +54,8 @@ function readView(): MapViewName {
 function draw(focusMine = false) {
   const me = currentUser(latest);
   const matches = me ? findMatches(me, latest, view.mode) : [];
+  const openBtn = document.getElementById("open-form-btn");
+  if (openBtn) openBtn.textContent = me && myEditAccess()?.id === me.id ? "Edit my entry" : "I'm coming too";
 
   renderPanel(latest, me, matches, view);
   if (!active) return; // the panel shows straight away; the map catches up when it has loaded
@@ -169,7 +171,9 @@ async function main() {
   const mapReady = import("./map").then(({ createMap }) => createMap(document.getElementById("map2d")!));
   const listReady = refresh();
 
-  setupAttendeeForm(
+  adoptEditLink();
+  const form = setupAttendeeForm(
+    () => currentUser(latest),
     () => {
       active?.showPreview(null);
       void refresh(true);
@@ -184,8 +188,13 @@ async function main() {
 
   // One delegated handler for everything clickable inside the side panel.
   panel.addEventListener("click", (e) => {
-    const target = (e.target as HTMLElement).closest<HTMLElement>("[data-mode],[data-more],[data-open-form]");
+    const target = (e.target as HTMLElement).closest<HTMLElement>("[data-mode],[data-more],[data-open-form],[data-edit-id]");
     if (!target) return;
+    if (target.dataset.editId) {
+      const person = latest.find((a) => a.id === Number(target.dataset.editId));
+      if (person) form.editEntry(person);
+      return;
+    }
     if (target.dataset.openForm) document.getElementById("open-form-btn")?.click();
     if (target.dataset.mode) {
       view.mode = target.dataset.mode === "all" ? "all" : "best";

@@ -1,4 +1,4 @@
-import { createAttendee } from "./api";
+import { createAttendee, deleteAttendee, updateAttendee, verifyEditCode } from "./api";
 import { routeToVenue, type RouteResult } from "./route";
 import { attachPlaceSearch, reverseGeocode } from "./search";
 import {
@@ -8,7 +8,7 @@ import {
   normalizeContacts,
   type ContactType,
 } from "../shared/contacts";
-import { MIN_NAME_LENGTH, type Attendee, type AttendeeInput, type Role, type Vehicle } from "../shared/types";
+import { MIN_NAME_LENGTH, normalizeEditCode, type Attendee, type AttendeeInput, type Role, type Vehicle } from "../shared/types";
 
 interface PendingLocation {
   lat: number;
@@ -20,11 +20,40 @@ interface PendingLocation {
 }
 
 export const MY_ID_KEY = "ride2fde:myId";
+/** The secret that lets this browser edit or remove its own entry. Set when the entry is added. */
+export const EDIT_TOKEN_KEY = "ride2fde:editToken";
+
+/** This browser's own entry id and secret, if it can edit one. */
+export function myEditAccess(): { id: number; token: string } | null {
+  try {
+    const id = Number(localStorage.getItem(MY_ID_KEY));
+    const token = localStorage.getItem(EDIT_TOKEN_KEY);
+    return Number.isInteger(id) && id > 0 && token ? { id, token } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Opening a private edit link (/#edit=ID.CODE) gives this browser access to that entry. The secret is then removed from the address bar. */
+export function adoptEditLink(): void {
+  const m = /^#edit=(\d+)\.([A-Za-z0-9]+)$/.exec(location.hash);
+  const code = m && normalizeEditCode(m[2]);
+  if (!m || !code) return;
+  try {
+    localStorage.setItem(MY_ID_KEY, m[1]);
+    localStorage.setItem(EDIT_TOKEN_KEY, code);
+  } catch {
+    /* storage unavailable: the link can't be remembered */
+  }
+  history.replaceState(null, "", location.pathname + location.search + "#ride");
+  document.getElementById("ride")?.scrollIntoView();
+}
 
 export function setupAttendeeForm(
-  onCreated: (attendee: Attendee) => void,
+  getMine: () => Attendee | null,
+  onCreated: (attendee: Attendee | null) => void,
   onPreview: (polyline: string | null) => void
-): void {
+): { editEntry: (a: Attendee) => void } {
   const dialog = document.getElementById("attendee-dialog") as HTMLDialogElement;
   const form = document.getElementById("attendee-form") as HTMLFormElement;
   const openBtn = document.getElementById("open-form-btn") as HTMLButtonElement;
@@ -38,6 +67,22 @@ export function setupAttendeeForm(
   const contactError = document.getElementById("contact-error") as HTMLParagraphElement;
   const addContactBtn = document.getElementById("add-contact-btn") as HTMLButtonElement;
   const vehicleEl = document.getElementById("vehicle-choice") as HTMLFieldSetElement;
+  const titleEl = document.getElementById("form-title") as HTMLHeadingElement;
+  const hintEl = document.getElementById("form-hint") as HTMLParagraphElement;
+  const removeBtn = document.getElementById("remove-btn") as HTMLButtonElement;
+  const savedDialog = document.getElementById("saved-dialog") as HTMLDialogElement;
+  const codeEl = document.getElementById("edit-code") as HTMLInputElement;
+  const copyCodeBtn = document.getElementById("copy-code-btn") as HTMLButtonElement;
+  const shareCodeBtn = document.getElementById("share-code-btn") as HTMLButtonElement;
+  const codeDialog = document.getElementById("code-dialog") as HTMLDialogElement;
+  const codeForm = document.getElementById("code-form") as HTMLFormElement;
+  const codeHint = document.getElementById("code-hint") as HTMLParagraphElement;
+  const codeInput = document.getElementById("code-input") as HTMLInputElement;
+  const codeError = document.getElementById("code-error") as HTMLParagraphElement;
+  const codeCancel = document.getElementById("code-cancel") as HTMLButtonElement;
+
+  /** Set while the person is changing their own entry instead of adding one. */
+  let editing: { id: number; token: string } | null = null;
 
   let pending: PendingLocation | null = null;
   let route: Promise<RouteResult> | null = null;
@@ -165,12 +210,158 @@ export function setupAttendeeForm(
     });
   };
 
+  function setEditing(access: { id: number; token: string } | null): void {
+    editing = access;
+    titleEl.textContent = access ? "Edit your route" : "Pin your start point";
+    hintEl.hidden = access !== null;
+    submitBtn.textContent = access ? "Save changes" : "Add my route";
+    removeBtn.hidden = access === null;
+  }
+
+  /** Fills the form with the person's current entry. */
+  function fillFrom(a: Attendee): void {
+    (form.elements.namedItem("name") as HTMLInputElement).value = a.name;
+    const role = form.querySelector<HTMLInputElement>(`input[name="role"][value="${a.role}"]`);
+    if (role) role.checked = true;
+    const vehicle = form.querySelector<HTMLInputElement>(`input[name="vehicle"][value="${a.vehicle ?? "car"}"]`);
+    if (vehicle) vehicle.checked = true;
+    syncVehicle();
+    rowsEl.replaceChildren();
+    if (a.contacts.length === 0) addRow("linkedin");
+    for (const c of a.contacts) {
+      addRow(c.type as ContactType);
+      inputOf(rowOf()[rowOf().length - 1]).value = c.value;
+    }
+    // the stored start is already a rough spot; the route is looked up again from it
+    setPending({ lat: a.lat, lng: a.lng, address: a.address, area: a.address });
+  }
+
+  /** Opens the form filled with an entry this browser has the code for. */
+  function startEdit(a: Attendee, access: { id: number; token: string }): void {
+    status.textContent = "";
+    clearPending();
+    setEditing(access);
+    fillFrom(a);
+    dialog.showModal();
+  }
+
   openBtn.addEventListener("click", () => {
     status.textContent = "";
+    const mine = getMine();
+    const access = myEditAccess();
+    const wasEditing = editing !== null;
+    if (mine && access && access.id === mine.id) {
+      startEdit(mine, access);
+      return;
+    } else {
+      setEditing(null);
+      if (wasEditing) {
+        clearPending();
+        form.reset();
+        resetRows();
+        syncVehicle();
+      }
+    }
     dialog.showModal();
   });
 
-  const closeDialog = () => {
+  removeBtn.addEventListener("click", async () => {
+    if (!editing) return;
+    if (!confirm("Remove your entry from the map? This can't be undone.")) return;
+    removeBtn.disabled = true;
+    try {
+      await deleteAttendee(editing.id, editing.token);
+      try {
+        localStorage.removeItem(MY_ID_KEY);
+        localStorage.removeItem(EDIT_TOKEN_KEY);
+        localStorage.removeItem("ride2fde:lastZone");
+      } catch {
+        /* storage unavailable */
+      }
+      closeDialog();
+      onCreated(null);
+    } catch (err) {
+      status.textContent = err instanceof Error ? err.message : "Something went wrong.";
+    } finally {
+      removeBtn.disabled = false;
+    }
+  });
+
+  copyCodeBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(codeEl.value);
+      copyCodeBtn.textContent = "Copied";
+    } catch {
+      codeEl.select(); // clipboard blocked: let them copy by hand
+    }
+  });
+
+  // On a phone this opens the share sheet (WhatsApp, email, notes…), so the code can be sent to yourself.
+  shareCodeBtn.hidden = typeof navigator.share !== "function";
+  shareCodeBtn.addEventListener("click", () => {
+    const access = myEditAccess();
+    const link = access ? `${location.origin}/#edit=${access.id}.${access.token}` : location.origin;
+    navigator
+      .share({ title: "ride2fde edit code", text: `My ride2fde edit code: ${codeEl.value}\nOr open: ${link}` })
+      .catch(() => {
+        /* closed without sending */
+      });
+  });
+
+  // ───────────── "Edit" beside a name: ask for that entry's code ─────────────
+
+  let askedFor: Attendee | null = null;
+
+  function editEntry(a: Attendee): void {
+    const access = myEditAccess();
+    if (access && access.id === a.id) {
+      startEdit(a, access); // this browser made the entry, so no code is needed
+      return;
+    }
+    askedFor = a;
+    codeHint.textContent = `Enter the edit code for ${a.name}. You were shown it when the route was added.`;
+    codeInput.value = "";
+    codeError.hidden = true;
+    codeDialog.showModal();
+    codeInput.focus();
+  }
+
+  codeInput.addEventListener("input", () => (codeError.hidden = true));
+  codeCancel.addEventListener("click", () => codeDialog.close());
+  codeForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const a = askedFor;
+    const code = normalizeEditCode(codeInput.value);
+    if (!a) return;
+    if (!code) {
+      codeError.textContent = "The code is three letters and four numbers, like shi4829.";
+      codeError.hidden = false;
+      return;
+    }
+    try {
+      if (!(await verifyEditCode(a.id, code))) {
+        codeError.textContent = "That code doesn't match this entry. Check it and try again.";
+        codeError.hidden = false;
+        return;
+      }
+    } catch (err) {
+      codeError.textContent = err instanceof Error ? err.message : "Something went wrong.";
+      codeError.hidden = false;
+      return;
+    }
+    try {
+      localStorage.setItem(MY_ID_KEY, String(a.id));
+      localStorage.setItem(EDIT_TOKEN_KEY, code);
+    } catch {
+      /* storage unavailable: it works for this visit only */
+    }
+    codeDialog.close();
+    onCreated(a); // redraw so the page knows this is "you" now
+    startEdit(a, { id: a.id, token: code });
+  });
+
+  function closeDialog(): void {
+    setEditing(null);
     clearPending();
     form.reset();
     resetRows();
@@ -178,7 +369,7 @@ export function setupAttendeeForm(
     syncVehicle();
     status.textContent = "";
     dialog.close();
-  };
+  }
   cancelBtn.addEventListener("click", closeDialog);
   dialog.addEventListener("cancel", () => clearPending()); // Esc key
 
@@ -254,7 +445,7 @@ export function setupAttendeeForm(
     }
 
     submitBtn.disabled = true;
-    status.textContent = "Adding your route…";
+    status.textContent = editing ? "Saving your changes…" : "Adding your route…";
 
     const fd = new FormData(form);
 
@@ -273,9 +464,19 @@ export function setupAttendeeForm(
         contacts,
       };
 
-      const attendee = await createAttendee(input);
-      localStorage.setItem(MY_ID_KEY, String(attendee.id));
+      let attendee: Attendee;
+      let newToken: string | null = null;
+      if (editing) {
+        attendee = await updateAttendee(editing.id, editing.token, input);
+      } else {
+        const created = await createAttendee(input);
+        attendee = created.attendee;
+        newToken = created.editToken;
+        localStorage.setItem(MY_ID_KEY, String(attendee.id));
+        localStorage.setItem(EDIT_TOKEN_KEY, newToken);
+      }
       localStorage.setItem("ride2fde:lastZone", attendee.zone);
+      setEditing(null);
 
       clearPending();
       form.reset();
@@ -284,9 +485,17 @@ export function setupAttendeeForm(
       syncVehicle();
       dialog.close();
       onCreated(attendee);
+      if (newToken) {
+        codeEl.value = newToken;
+        copyCodeBtn.textContent = "Copy code";
+        void navigator.clipboard?.writeText(codeEl.value).catch(() => {}); // may be blocked; the button is the fallback
+        savedDialog.showModal();
+      }
     } catch (err) {
       status.textContent = err instanceof Error ? err.message : "Something went wrong.";
       submitBtn.disabled = false;
     }
   });
+
+  return { editEntry };
 }

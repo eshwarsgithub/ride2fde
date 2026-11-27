@@ -85,11 +85,16 @@ function stop(kind: string, body: string): string {
   return `<li class="stop ${kind}"><span class="dot" aria-hidden="true"></span><div class="body">${body}</div></li>`;
 }
 
+/** A small "Edit" beside a name. It asks for the entry's edit code, or opens the form straight away on the browser that made it. */
+function editLink(a: Attendee): string {
+  return a.editable ? `<button type="button" class="edit-link" data-edit-id="${a.id}" aria-label="Edit ${esc(a.name)}'s entry">Edit</button>` : "";
+}
+
 function personStop(me: Attendee, m: Match): string {
   const a = m.attendee;
   return stop(
     "match",
-    `<div class="who"><strong>${esc(a.name)}</strong>${pill(a)}${vehicleChip(a)}</div>
+    `<div class="who"><strong>${esc(a.name)}</strong>${pill(a)}${vehicleChip(a)}${editLink(a)}</div>
      <small class="note">${esc(matchNote(me, m))}</small>
      <small>${esc(a.address)}</small>
      ${reach(a)}`
@@ -143,7 +148,7 @@ function renderRouteSection(me: Attendee, matches: Match[], opts: PanelOptions):
       <ol class="line">
         ${stop(
           "me",
-          `<div class="who"><strong>You</strong>${pill(me)}${vehicleChip(me)}</div>
+          `<div class="who"><strong>You</strong>${pill(me)}${vehicleChip(me)}${editLink(me)}</div>
            <small>${esc(me.address)}</small>
            <small>${esc(journey(me))}</small>`
         )}
@@ -177,7 +182,7 @@ function renderZones(others: Attendee[], myZone: string | null, title: string): 
             ${group
               .map(
                 (a) => `<li>
-                  <div class="who"><strong>${esc(a.name)}</strong>${pill(a)}${vehicleChip(a)}</div>
+                  <div class="who"><strong>${esc(a.name)}</strong>${pill(a)}${vehicleChip(a)}${editLink(a)}</div>
                   <small>${esc(a.address)}</small>
                 </li>`
               )

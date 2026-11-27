@@ -143,8 +143,8 @@
 
       <dialog id="attendee-dialog">
         <form id="attendee-form" method="dialog">
-          <h2>Pin your start point</h2>
-          <p class="dialog-hint">We'll draw your route to IIT Hyderabad and show who's on the way.</p>
+          <h2 id="form-title">Pin your start point</h2>
+          <p class="dialog-hint" id="form-hint">We'll draw your route to IIT Hyderabad and show who's on the way.</p>
 
           <label>
             Name
@@ -194,9 +194,41 @@
 
           <p id="form-status" class="form-status"></p>
 
+          <button type="button" id="remove-btn" class="link-btn danger-btn" hidden>Remove my entry</button>
+
           <div class="dialog-actions">
             <button type="button" id="cancel-btn" class="ghost-btn">Cancel</button>
             <button type="submit" id="submit-btn" class="cta" disabled>Add my route</button>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog id="saved-dialog">
+        <form method="dialog">
+          <h2>You're on the map</h2>
+          <p class="dialog-hint">Save this edit code. There are no accounts, so it's the only way to change or remove your route later, even from another phone: tap Edit beside your name and enter it. Keep it private.</p>
+          <input type="text" id="edit-code" class="code-display" readonly aria-label="Your edit code" />
+          <div class="dialog-actions">
+            <button type="button" id="copy-code-btn" class="ghost-btn">Copy code</button>
+            <button type="button" id="share-code-btn" class="ghost-btn" hidden>Send it to myself</button>
+            <button type="submit" class="cta">Done</button>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog id="code-dialog">
+        <form id="code-form" method="dialog">
+          <h2>Edit your route</h2>
+          <p class="dialog-hint" id="code-hint"></p>
+          <label>
+            Edit code
+            <input type="text" id="code-input" class="code-display" placeholder="shi4829" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="12" />
+          </label>
+          <p id="code-error" class="field-error" role="alert" hidden></p>
+          <p class="privacy-note">You were shown this code when you added your route. If you lost it, you can't edit this entry; add your route again and ask the organiser to remove the old one.</p>
+          <div class="dialog-actions">
+            <button type="button" id="code-cancel" class="ghost-btn">Cancel</button>
+            <button type="submit" class="cta">Continue</button>
           </div>
         </form>
       </dialog>
